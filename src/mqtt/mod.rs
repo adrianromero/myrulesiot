@@ -18,4 +18,4 @@
 //
 
 mod connection;
-pub use connection::ConnectionInfo;
+pub use connection::{Connection, ConnectionInfo};

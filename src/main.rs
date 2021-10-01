@@ -17,26 +17,21 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use tokio::{task, time};
-
-use rumqttc::{self, AsyncClient, MqttOptions, QoS};
+use rumqttc::{self, AsyncClient, Publish, QoS};
 use std::error::Error;
+use std::str;
 use std::time::Duration;
+use tokio::sync::mpsc;
 
 mod mqtt;
-use mqtt::ConnectionInfo;
+use mqtt::{Connection, ConnectionInfo};
 
-mod engine;
+// mod engine;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
-
-    // log::trace!("Executing query: {}", "pepe");
-    // log::debug!("Executing query: {}", "debug");
-    // log::info!("Executing info.");
-    // log::warn!("Executing warn.");
-    // log::error!("Executing error.");
+    log::info!("Starting myrulesiot...");
 
     // Defines connection properties
     let connection_info = ConnectionInfo {
@@ -46,67 +41,52 @@ async fn main() -> Result<(), Box<dyn Error>> {
         ..Default::default()
     };
 
-    connectivity(connection_info).await?;
+    let (client, eventloop) = Connection::new(
+        connection_info,
+        vec![(String::from("myhelloiot/modal"), QoS::AtMostOnce)],
+    )
+    .await?;
 
-    println!("Salimos finos...");
+    let (tx, mut rx) = mpsc::channel::<Publish>(10);
+
+    let j1 = tokio::task::spawn(async move {
+        requests(client).await;
+        tokio::time::sleep(Duration::from_secs(3)).await;
+        log::info!("Exiting spawn requests...");
+    });
+
+    let j2 = tokio::task::spawn(async move {
+        while let Some(message) = rx.recv().await {
+            let payload = str::from_utf8(&message.payload).unwrap_or("<ERROR>");
+            log::info!("Receiving: Topic = {}, Payload ={}", message.topic, payload);
+        }
+        log::info!("Exiting spawn receiver...");
+    });
+
+    Connection::do_loop(eventloop, tx).await?;
+
+    let (_, _) = tokio::join!(j1, j2);
+
+    log::info!("Exiting myrulesiot...");
     Ok(())
 }
 
-async fn connectivity(connection_info: ConnectionInfo) -> Result<(), Box<dyn Error>> {
-    // Connects to the MQTT server
-    let mut mqttoptions = MqttOptions::new(
-        connection_info.id,
-        connection_info.host,
-        connection_info.port,
-    );
-    mqttoptions
-        .set_keep_alive(connection_info.keep_alive)
-        .set_inflight(connection_info.inflight)
-        .set_clean_session(connection_info.clean_session);
+async fn requests(client: AsyncClient) {
+    for i in 1..=10 {
+        client
+            .publish(
+                "myhelloiot/modal",
+                QoS::ExactlyOnce,
+                false,
+                i.to_string().as_bytes(),
+            )
+            .await
+            .unwrap();
 
-    let (client, mut eventloop) = AsyncClient::new(mqttoptions, 10);
-    client
-        .subscribe("myhelloiot/modal", QoS::AtMostOnce)
-        .await?;
-
-    task::spawn(async move {
-        requests(client).await;
-        time::sleep(Duration::from_secs(3)).await;
-    });
-
-    // See example in https://github.com/bytebeamio/rumqtt/issues/263
-    // See channel use https://docs.rs/tokio/1.12.0/tokio/sync/mpsc/struct.Sender.html
-    loop {
-        let result = eventloop.poll().await;
-        match result {
-            Result::Ok(event) => {
-                println!("Event -> {:?}", event);
-            }
-            Result::Err(rumqttc::ConnectionError::Cancel) => {
-                println!("Notify -> Cancel");
-                break;
-            }
-            Result::Err(error) => {
-                println!("Error -> {:?}", error);
-                Result::Err(error)?;
-            }
-        }
+        tokio::time::sleep(Duration::from_secs(1)).await;
     }
 
-    Result::Ok(())
-}
-
-async fn requests(client: AsyncClient) {
-    // for i in 1..=10 {
-    //     client
-    //         .publish("hello/world", QoS::ExactlyOnce, false, vec![1; i])
-    //         .await
-    //         .unwrap();
-
-    //     time::sleep(Duration::from_secs(1)).await;
-    // }
-
-    time::sleep(Duration::from_secs(10)).await;
+    tokio::time::sleep(Duration::from_secs(1)).await;
     client.cancel().await.unwrap();
     //client.disconnect().await.unwrap();
 }

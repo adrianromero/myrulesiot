@@ -17,7 +17,11 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use rumqttc::{self, AsyncClient, EventLoop, MqttOptions, QoS};
+use rumqttc::{
+    self, AsyncClient, ConnectionError, Event, EventLoop, MqttOptions, Packet, Publish, QoS,
+};
+use std::error::Error;
+use tokio::sync::mpsc;
 
 pub struct ConnectionInfo {
     pub id: String,
@@ -41,31 +45,56 @@ impl Default for ConnectionInfo {
     }
 }
 
-pub struct Connection {
-    connection_info: ConnectionInfo,
-    async_client: Option<(AsyncClient, EventLoop)>,
-}
+pub type TopicInfo = (String, QoS);
 
+pub struct Connection;
 impl Connection {
-    fn new(connection_info: ConnectionInfo) -> Self {
-        Connection {
-            connection_info: connection_info,
-            async_client: None,
-        }
-    }
-
-    fn connect(&mut self) {
+    pub async fn new(
+        connection_info: ConnectionInfo,
+        subscriptions: Vec<TopicInfo>,
+    ) -> Result<(AsyncClient, EventLoop), Box<dyn Error>> {
         let mut mqttoptions = MqttOptions::new(
-            self.connection_info.id.clone(),
-            self.connection_info.host.clone(),
-            self.connection_info.port,
+            connection_info.id.clone(),
+            connection_info.host.clone(),
+            connection_info.port,
         );
         mqttoptions
-            .set_keep_alive(self.connection_info.keep_alive)
-            .set_inflight(self.connection_info.inflight)
-            .set_clean_session(self.connection_info.clean_session);
+            .set_keep_alive(connection_info.keep_alive)
+            .set_inflight(connection_info.inflight)
+            .set_clean_session(connection_info.clean_session);
 
         let (client, eventloop) = AsyncClient::new(mqttoptions, 10);
-        self.async_client = Some((client, eventloop));
+
+        for (topic, qos) in subscriptions.into_iter() {
+            client.subscribe(topic, qos).await?;
+        }
+
+        Ok((client, eventloop))
+    }
+
+    pub async fn do_loop(
+        mut eventloop: EventLoop,
+        tx: mpsc::Sender<Publish>,
+    ) -> Result<(), Box<dyn Error>> {
+        loop {
+            let result = eventloop.poll().await;
+            match result {
+                Result::Ok(Event::Incoming(Packet::Publish(publish))) => {
+                    tx.send(publish).await.unwrap();
+                }
+                Result::Ok(event) => {
+                    log::debug!("Ignored -> {:?}", event);
+                }
+                Result::Err(ConnectionError::Cancel) => {
+                    break;
+                }
+                Result::Err(error) => {
+                    log::warn!("Error -> {:?}", error);
+                    Result::Err(error)?;
+                }
+            }
+        }
+
+        Result::Ok(())
     }
 }
