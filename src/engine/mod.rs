@@ -17,7 +17,9 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+use std::error::Error;
 use std::fmt::{Debug, Display};
+use tokio::sync::mpsc;
 
 // pub trait Engine<A, R, S> {
 //     fn reduce(&self, state: &S, action: &A) -> S;
@@ -31,42 +33,43 @@ use std::fmt::{Debug, Display};
 // }
 
 pub struct Engine<A, R, S> {
-    reduce: fn(&S, &A) -> S,
-    template: fn(&S) -> R,
-    is_final: fn(&R) -> bool,
+    pub reduce: fn(&S, &A) -> S,
+    pub template: fn(&S) -> R,
+    pub is_final: fn(&R) -> bool,
 }
 
-pub struct RuntimeEngine<A, R, S>
-where
-    A: Debug + Display,
-    R: Debug + Display,
-    S: Debug + Display,
-{
-    state: S,
-    engine: Engine<A, R, S>,
-}
+pub struct RuntimeEngine;
 
-impl<A, R, S> RuntimeEngine<A, R, S>
-where
-    A: Debug + Display,
-    R: Debug + Display,
-    S: Default + Debug + Display,
-{
-    fn new(engine: Engine<A, R, S>) -> Self {
-        RuntimeEngine {
-            state: Default::default(),
-            engine: engine,
+impl RuntimeEngine {
+    pub async fn do_loop<A, R, S>(
+        engine: Engine<A, R, S>,
+        tx: mpsc::Sender<R>,
+        mut rx: mpsc::Receiver<A>,
+    ) where
+        A: Debug,
+        R: Debug,
+        S: Default + Debug,
+    {
+        let mut state = Default::default();
+
+        while let Some(action) = rx.recv().await {
+            log::info!("Persist action {:?}.", &action);
+
+            state = (engine.reduce)(&state, &action);
+
+            log::info!("Persist state {:?}.", &state);
+
+            let result = (engine.template)(&state);
+
+            log::info!("Persist result {:?}.", &result);
+
+            let is_final = (engine.is_final)(&result);
+
+            tx.send(result).await.unwrap();
+
+            if is_final {
+                break;
+            }
         }
-    }
-
-    fn step(&mut self, action: A) -> (R, bool) {
-        log::info!("Persist action {:?}.", &action);
-        self.state = (self.engine.reduce)(&self.state, &action);
-        log::info!("Persist state {:?}.", &self.state);
-        let result = (self.engine.template)(&self.state);
-        log::info!("Persist result {:?}.", &result);
-        let is_final = (self.engine.is_final)(&result);
-        log::info!("Persist final {:?}.", is_final);
-        (result, is_final)
     }
 }

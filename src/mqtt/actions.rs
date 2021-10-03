@@ -17,8 +17,10 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-mod connection;
-pub use connection::{Connection, ConnectionInfo};
+use rumqttc::Publish;
 
-mod actions;
-pub use actions::ConnectionResult;
+#[derive(Debug)]
+pub struct ConnectionResult {
+    pub messages: Vec<Publish>,
+    pub is_final: bool,
+}

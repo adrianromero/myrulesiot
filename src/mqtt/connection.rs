@@ -23,6 +23,7 @@ use rumqttc::{
 use std::error::Error;
 use tokio::sync::mpsc;
 
+#[derive(Debug)]
 pub struct ConnectionInfo {
     pub id: String,
     pub host: String,
@@ -80,7 +81,7 @@ impl Connection {
             let result = eventloop.poll().await;
             match result {
                 Result::Ok(Event::Incoming(Packet::Publish(publish))) => {
-                    tx.send(publish).await.unwrap();
+                    tx.send(publish).await?;
                 }
                 Result::Ok(event) => {
                     log::debug!("Ignored -> {:?}", event);
