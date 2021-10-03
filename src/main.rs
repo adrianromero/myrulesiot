@@ -17,7 +17,7 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use rumqttc::{self, AsyncClient, Publish, QoS};
+use rumqttc::{self, QoS};
 use std::error::Error;
 use tokio::sync::mpsc;
 
@@ -50,9 +50,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     )
     .await?;
     // Engine definition
-    fn reduce(state: &u32, _action: &ConnectionAction) -> u32 {
-        state + 1
-    }
 
     let engine: Engine<ConnectionAction, ConnectionResult, u32> = Engine {
         reduce: |state: &u32, _action: &ConnectionAction| -> u32 { state + 1 },

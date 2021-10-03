@@ -17,9 +17,7 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use rumqttc::{
-    self, AsyncClient, ConnectionError, Event, EventLoop, MqttOptions, Packet, Publish, QoS,
-};
+use rumqttc::{self, AsyncClient, ConnectionError, Event, EventLoop, MqttOptions, Packet, QoS};
 use std::error::Error;
 use tokio::sync::mpsc;
 
