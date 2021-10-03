@@ -81,8 +81,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
     let subscriptions = vec![(String::from("myhelloiot/#"), QoS::AtMostOnce)];
 
-    log::info!("Starting myrulesiot...");
-    let r = mainengine::main_engine(engine, connection_info, subscriptions).await;
-    log::info!("Exiting myrulesiot...");
-    r
+    // This goes to mqtt module
+    mainengine::main_engine(engine, connection_info, subscriptions).await
 }

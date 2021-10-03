@@ -29,13 +29,15 @@ use crate::mqtt::{
 };
 
 pub async fn main_engine<T>(
-    engine: ConnectionEngine<T>,
+    engine: ConnectionEngine<T>, // This type can be maybe more generic
     connection_info: ConnectionInfo,
     subscriptions: Vec<TopicInfo>,
 ) -> Result<(), Box<dyn Error>>
 where
     T: Debug + Default + Send + 'static,
 {
+    log::info!("Starting myrulesiot...");
+
     let (sub_tx, sub_rx) = mpsc::channel::<ConnectionMessage>(connection_info.cap);
     let (pub_tx, pub_rx) = mpsc::channel::<ConnectionResult>(connection_info.cap);
 
@@ -69,5 +71,6 @@ where
 
     let (_, _, _) = join!(j1, j2, j3);
 
+    log::info!("Exiting myrulesiot...");
     Ok(())
 }
