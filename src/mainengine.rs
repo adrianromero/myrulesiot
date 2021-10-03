@@ -17,48 +17,30 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use bytes::Bytes;
-use rumqttc::Publish;
 use rumqttc::QoS;
 
-#[derive(Debug, Clone)]
-pub struct ConnectionMessage {
-    pub qos: QoS,
-    pub retain: bool,
-    pub topic: String,
-    pub payload: Bytes,
-}
+use crate::engine::Engine;
+use crate::mqtt::{self, ConnectionMessage, ConnectionResult, ConnectionState};
 
-impl From<Publish> for ConnectionMessage {
-    fn from(p: Publish) -> ConnectionMessage {
-        ConnectionMessage {
-            topic: p.topic,
-            retain: p.retain,
-            qos: p.qos,
-            payload: p.payload,
+pub fn create_main_engine() -> Engine<ConnectionMessage, ConnectionResult, ConnectionState<u32>> {
+    mqtt::create_engine(|state: &ConnectionState<u32>, action: &ConnectionMessage| {
+        let mut messages = Vec::<ConnectionMessage>::new();
+        if "myhelloiot/alarm".eq(&action.topic) {
+            messages.push(ConnectionMessage {
+                topic: "myhelloiot/modal".into(),
+                qos: QoS::AtMostOnce,
+                retain: false,
+                payload: "0".into(),
+            })
         }
-    }
-}
 
-#[derive(Debug)]
-pub struct ConnectionResult {
-    pub messages: Vec<ConnectionMessage>,
-    pub is_final: bool,
-}
+        let actionfinal = "myhelloiot/exit".eq(&action.topic) && "1234".eq(&action.payload);
 
-#[derive(Debug)]
-pub struct ConnectionState<S> {
-    pub info: S,
-    pub messages: Vec<ConnectionMessage>,
-    pub is_final: bool,
-}
-
-impl<S: Default> Default for ConnectionState<S> {
-    fn default() -> Self {
+        //if action.message
         ConnectionState {
-            info: Default::default(),
-            messages: vec![],
-            is_final: false,
+            info: state.info + 1,
+            messages,
+            is_final: state.info == 120 || actionfinal,
         }
-    }
+    })
 }

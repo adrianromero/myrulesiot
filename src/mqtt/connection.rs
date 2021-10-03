@@ -21,7 +21,7 @@ use rumqttc::{self, AsyncClient, ConnectionError, Event, EventLoop, MqttOptions,
 use std::error::Error;
 use tokio::sync::mpsc;
 
-use crate::mqtt::{ConnectionAction, ConnectionResult};
+use crate::mqtt::{ConnectionMessage, ConnectionResult};
 
 #[derive(Debug)]
 pub struct ConnectionInfo {
@@ -31,6 +31,7 @@ pub struct ConnectionInfo {
     pub keep_alive: u16,
     pub inflight: u16,
     pub clean_session: bool,
+    pub cap: usize,
 }
 
 impl Default for ConnectionInfo {
@@ -42,83 +43,78 @@ impl Default for ConnectionInfo {
             keep_alive: 5,
             inflight: 10,
             clean_session: false,
+            cap: 10,
         }
     }
 }
 
 pub type TopicInfo = (String, QoS);
 
-pub struct Connection;
-impl Connection {
-    pub async fn new(
-        connection_info: ConnectionInfo,
-        subscriptions: Vec<TopicInfo>,
-    ) -> Result<(AsyncClient, EventLoop), Box<dyn Error>> {
-        let mut mqttoptions = MqttOptions::new(
-            connection_info.id.clone(),
-            connection_info.host.clone(),
-            connection_info.port,
-        );
-        mqttoptions
-            .set_keep_alive(connection_info.keep_alive)
-            .set_inflight(connection_info.inflight)
-            .set_clean_session(connection_info.clean_session);
+pub async fn new_connection(
+    connection_info: ConnectionInfo,
+    subscriptions: Vec<TopicInfo>,
+) -> Result<(AsyncClient, EventLoop), Box<dyn Error>> {
+    let mut mqttoptions = MqttOptions::new(
+        connection_info.id.clone(),
+        connection_info.host.clone(),
+        connection_info.port,
+    );
+    mqttoptions
+        .set_keep_alive(connection_info.keep_alive)
+        .set_inflight(connection_info.inflight)
+        .set_clean_session(connection_info.clean_session);
 
-        let (client, eventloop) = AsyncClient::new(mqttoptions, 10);
+    let (client, eventloop) = AsyncClient::new(mqttoptions, connection_info.cap);
 
-        for (topic, qos) in subscriptions.into_iter() {
-            client.subscribe(topic, qos).await?;
-        }
-
-        Ok((client, eventloop))
+    for (topic, qos) in subscriptions.into_iter() {
+        client.subscribe(topic, qos).await?;
     }
 
-    pub async fn subscription_loop(
-        mut eventloop: EventLoop,
-        tx: mpsc::Sender<ConnectionAction>,
-    ) -> Result<(), Box<dyn Error>> {
-        loop {
-            match eventloop.poll().await {
-                Result::Ok(Event::Incoming(Packet::Publish(publish))) => {
-                    tx.send(ConnectionAction { message: publish }).await?;
-                }
-                Result::Ok(event) => {
-                    log::debug!("Ignored -> {:?}", event);
-                }
-                Result::Err(ConnectionError::Cancel) => {
-                    break;
-                }
-                Result::Err(error) => {
-                    log::warn!("Error -> {:?}", error);
-                    Result::Err(error)?;
-                }
+    Ok((client, eventloop))
+}
+
+pub async fn subscription_loop(
+    mut eventloop: EventLoop,
+    tx: mpsc::Sender<ConnectionMessage>,
+) -> Result<(), Box<dyn Error>> {
+    loop {
+        match eventloop.poll().await {
+            Result::Ok(Event::Incoming(Packet::Publish(publish))) => {
+                tx.send(ConnectionMessage::from(publish)).await?;
+            }
+            Result::Ok(event) => {
+                log::debug!("Ignored -> {:?}", event);
+            }
+            Result::Err(ConnectionError::Cancel) => {
+                break;
+            }
+            Result::Err(error) => {
+                log::warn!("Error -> {:?}", error);
+                Result::Err(error)?;
             }
         }
-
-        Result::Ok(())
     }
 
-    pub async fn publication_loop(
-        client: AsyncClient,
-        mut pub_rx: mpsc::Receiver<ConnectionResult>,
-    ) {
-        // This is the future in charge of publishing result messages and canceling if final
-        while let Some(res) = pub_rx.recv().await {
-            for elem in res.messages.into_iter() {
-                client
-                    .publish(
-                        elem.topic,
-                        elem.qos,
-                        elem.retain,
-                        Vec::from(&elem.payload[..]),
-                    )
-                    .await
-                    .unwrap();
-            }
+    Result::Ok(())
+}
 
-            if res.is_final {
-                client.cancel().await.unwrap();
-            }
+pub async fn publication_loop(client: AsyncClient, mut pub_rx: mpsc::Receiver<ConnectionResult>) {
+    // This is the future in charge of publishing result messages and canceling if final
+    while let Some(res) = pub_rx.recv().await {
+        for elem in res.messages.into_iter() {
+            client
+                .publish(
+                    elem.topic,
+                    elem.qos,
+                    elem.retain,
+                    Vec::from(&elem.payload[..]),
+                )
+                .await
+                .unwrap();
+        }
+
+        if res.is_final {
+            client.cancel().await.unwrap();
         }
     }
 }

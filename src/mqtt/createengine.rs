@@ -17,14 +17,20 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-mod connection;
-pub use connection::ConnectionInfo;
-pub use connection::{new_connection, publication_loop, subscription_loop};
+use crate::engine::Engine;
+use crate::mqtt::{ConnectionMessage, ConnectionResult, ConnectionState};
 
-mod actions;
-pub use actions::ConnectionMessage;
-pub use actions::ConnectionResult;
-pub use actions::ConnectionState;
+pub type ConnectionReducer<S> = fn(&ConnectionState<S>, &ConnectionMessage) -> ConnectionState<S>;
 
-mod createengine;
-pub use createengine::create_engine;
+pub fn create_engine<S>(
+    reduce: ConnectionReducer<S>,
+) -> Engine<ConnectionMessage, ConnectionResult, ConnectionState<S>> {
+    Engine {
+        reduce: reduce,
+        template: |state: &ConnectionState<S>| ConnectionResult {
+            messages: state.messages.to_owned(),
+            is_final: state.is_final,
+        },
+        is_final: |result: &ConnectionResult| result.is_final,
+    }
+}

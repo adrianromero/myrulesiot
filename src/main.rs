@@ -19,14 +19,16 @@
 
 use rumqttc::{self, QoS};
 use std::error::Error;
+use tokio::join;
 use tokio::sync::mpsc;
+use tokio::task;
 
 mod mqtt;
-use mqtt::{Connection, ConnectionAction, ConnectionInfo, ConnectionResult};
+use mqtt::{ConnectionInfo, ConnectionMessage, ConnectionResult};
 
 mod engine;
-use engine::Engine;
-use engine::RuntimeEngine;
+
+mod mainengine;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -41,45 +43,36 @@ async fn main() -> Result<(), Box<dyn Error>> {
         ..Default::default()
     };
 
-    let (sub_tx, sub_rx) = mpsc::channel::<ConnectionAction>(10);
+    let (sub_tx, sub_rx) = mpsc::channel::<ConnectionMessage>(10);
     let (pub_tx, pub_rx) = mpsc::channel::<ConnectionResult>(10);
 
-    let (client, eventloop) = Connection::new(
+    let (client, eventloop) = mqtt::new_connection(
         connection_info,
-        vec![(String::from("myhelloiot/modal"), QoS::AtMostOnce)],
+        vec![(String::from("myhelloiot/#"), QoS::AtMostOnce)],
     )
     .await?;
-    // Engine definition
 
-    let engine: Engine<ConnectionAction, ConnectionResult, u32> = Engine {
-        reduce: |state: &u32, _action: &ConnectionAction| -> u32 { state + 1 },
-        template: |state: &u32| -> ConnectionResult {
-            ConnectionResult {
-                messages: vec![],
-                is_final: state == &4,
-            }
-        },
-        is_final: |result: &ConnectionResult| result.is_final,
-    };
+    // Engine definition
+    let engine = mainengine::create_main_engine();
 
     // Runtime things
-    let j2 = tokio::task::spawn(async move {
-        match RuntimeEngine::do_loop(engine, pub_tx, sub_rx).await {
+    let j1 = task::spawn(async move {
+        match engine::runtime_loop(engine, pub_tx, sub_rx).await {
             Result::Ok(_) => {}
             Result::Err(error) => {
                 log::warn!("Runtime error {}", error);
             }
         }
-        log::info!("Exiting spawn engine...");
+        log::info!("Exiting spawn runtime engine...");
     });
 
     // MQTT things
-    let j1 = tokio::task::spawn(async move {
-        Connection::publication_loop(client, pub_rx).await;
-        log::info!("Exiting spawn mqtt publishing...");
+    let j2 = task::spawn(async move {
+        mqtt::publication_loop(client, pub_rx).await;
+        log::info!("Exiting spawn mqtt publication...");
     });
-    let j3 = tokio::task::spawn(async move {
-        match Connection::subscription_loop(eventloop, sub_tx).await {
+    let j3 = task::spawn(async move {
+        match mqtt::subscription_loop(eventloop, sub_tx).await {
             Result::Ok(_) => {}
             Result::Err(error) => {
                 log::warn!("Connection error {}", error);
@@ -87,7 +80,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
         log::info!("Exiting spawn mqtt subscription...");
     });
-    let (_, _, _) = tokio::join!(j1, j2, j3);
+
+    let (_, _, _) = join!(j1, j2, j3);
 
     log::info!("Exiting myrulesiot...");
     Ok(())

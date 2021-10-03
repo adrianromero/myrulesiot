@@ -26,40 +26,36 @@ pub struct Engine<A, R, S> {
     pub is_final: fn(&R) -> bool,
 }
 
-pub struct RuntimeEngine;
+pub async fn runtime_loop<A, R, S>(
+    engine: Engine<A, R, S>,
+    tx: mpsc::Sender<R>,
+    mut rx: mpsc::Receiver<A>,
+) -> Result<(), mpsc::error::SendError<R>>
+where
+    A: Debug,
+    R: Debug,
+    S: Default + Debug,
+{
+    let mut state = Default::default();
 
-impl RuntimeEngine {
-    pub async fn do_loop<A, R, S>(
-        engine: Engine<A, R, S>,
-        tx: mpsc::Sender<R>,
-        mut rx: mpsc::Receiver<A>,
-    ) -> Result<(), mpsc::error::SendError<R>>
-    where
-        A: Debug,
-        R: Debug,
-        S: Default + Debug,
-    {
-        let mut state = Default::default();
+    while let Some(action) = rx.recv().await {
+        log::info!("Persist action {:?}.", &action);
 
-        while let Some(action) = rx.recv().await {
-            log::info!("Persist action {:?}.", &action);
+        state = (engine.reduce)(&state, &action);
 
-            state = (engine.reduce)(&state, &action);
+        log::info!("Persist state {:?}.", &state);
 
-            log::info!("Persist state {:?}.", &state);
+        let result = (engine.template)(&state);
 
-            let result = (engine.template)(&state);
+        log::info!("Persist result {:?}.", &result);
 
-            log::info!("Persist result {:?}.", &result);
+        let is_final = (engine.is_final)(&result);
 
-            let is_final = (engine.is_final)(&result);
+        tx.send(result).await?;
 
-            tx.send(result).await?;
-
-            if is_final {
-                break;
-            }
+        if is_final {
+            break;
         }
-        Ok(())
     }
+    Ok(())
 }
