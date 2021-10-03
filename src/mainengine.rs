@@ -24,17 +24,15 @@ use tokio::sync::mpsc;
 use tokio::task;
 
 use crate::engine;
-use crate::mqtt::{
-    self, ConnectionEngine, ConnectionInfo, ConnectionMessage, ConnectionResult, TopicInfo,
-};
+use crate::mqtt::{self, ConnectionInfo, ConnectionMessage, ConnectionResult, TopicInfo};
 
-pub async fn main_engine<T>(
-    engine: ConnectionEngine<T>, // This type can be maybe more generic
+pub async fn main_engine<S>(
+    engine: engine::Engine<ConnectionMessage, ConnectionResult, S>,
     connection_info: ConnectionInfo,
     subscriptions: Vec<TopicInfo>,
 ) -> Result<(), Box<dyn Error>>
 where
-    T: Debug + Default + Send + 'static,
+    S: Debug + Default + Send + 'static,
 {
     log::info!("Starting myrulesiot...");
 
