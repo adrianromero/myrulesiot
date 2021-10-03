@@ -22,7 +22,7 @@ use std::error::Error;
 use tokio::sync::mpsc;
 
 mod mqtt;
-use mqtt::{Connection, ConnectionInfo, ConnectionResult};
+use mqtt::{Connection, ConnectionAction, ConnectionInfo, ConnectionResult};
 
 mod engine;
 use engine::Engine;
@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         ..Default::default()
     };
 
-    let (sub_tx, sub_rx) = mpsc::channel::<Publish>(10);
+    let (sub_tx, sub_rx) = mpsc::channel::<ConnectionAction>(10);
     let (pub_tx, pub_rx) = mpsc::channel::<ConnectionResult>(10);
 
     let (client, eventloop) = Connection::new(
@@ -49,43 +49,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
         vec![(String::from("myhelloiot/modal"), QoS::AtMostOnce)],
     )
     .await?;
-
-    async fn publishing(client: AsyncClient, mut pub_rx: mpsc::Receiver<ConnectionResult>) {
-        // This is the future in charge of publishing result messages and canceling if final
-        while let Some(res) = pub_rx.recv().await {
-            for elem in res.messages.into_iter() {
-                client
-                    .publish(
-                        elem.topic,
-                        elem.qos,
-                        elem.retain,
-                        Vec::from(&elem.payload[..]),
-                    )
-                    .await
-                    .unwrap();
-            }
-
-            if res.is_final {
-                client.cancel().await.unwrap();
-            }
-        }
-    }
-
     // Engine definition
-    fn reduce(state: &u32, _action: &Publish) -> u32 {
+    fn reduce(state: &u32, _action: &ConnectionAction) -> u32 {
         state + 1
     }
 
-    fn template(state: &u32) -> ConnectionResult {
-        ConnectionResult {
-            messages: vec![],
-            is_final: state == &4,
-        }
-    }
-
-    let engine: Engine<Publish, ConnectionResult, u32> = Engine {
-        reduce,
-        template,
+    let engine: Engine<ConnectionAction, ConnectionResult, u32> = Engine {
+        reduce: |state: &u32, _action: &ConnectionAction| -> u32 { state + 1 },
+        template: |state: &u32| -> ConnectionResult {
+            ConnectionResult {
+                messages: vec![],
+                is_final: state == &4,
+            }
+        },
         is_final: |result: &ConnectionResult| result.is_final,
     };
 
@@ -102,11 +78,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // MQTT things
     let j1 = tokio::task::spawn(async move {
-        publishing(client, pub_rx).await;
+        Connection::publication_loop(client, pub_rx).await;
         log::info!("Exiting spawn mqtt publishing...");
     });
     let j3 = tokio::task::spawn(async move {
-        match Connection::do_loop(eventloop, sub_tx).await {
+        match Connection::subscription_loop(eventloop, sub_tx).await {
             Result::Ok(_) => {}
             Result::Err(error) => {
                 log::warn!("Connection error {}", error);

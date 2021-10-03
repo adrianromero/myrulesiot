@@ -24,3 +24,8 @@ pub struct ConnectionResult {
     pub messages: Vec<Publish>,
     pub is_final: bool,
 }
+
+#[derive(Debug)]
+pub struct ConnectionAction {
+    pub message: Publish,
+}

@@ -18,7 +18,9 @@
 //
 
 mod connection;
-pub use connection::{Connection, ConnectionInfo};
+pub use connection::Connection;
+pub use connection::ConnectionInfo;
 
 mod actions;
+pub use actions::ConnectionAction;
 pub use actions::ConnectionResult;

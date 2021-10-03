@@ -23,6 +23,8 @@ use rumqttc::{
 use std::error::Error;
 use tokio::sync::mpsc;
 
+use crate::mqtt::{ConnectionAction, ConnectionResult};
+
 #[derive(Debug)]
 pub struct ConnectionInfo {
     pub id: String,
@@ -73,14 +75,14 @@ impl Connection {
         Ok((client, eventloop))
     }
 
-    pub async fn do_loop(
+    pub async fn subscription_loop(
         mut eventloop: EventLoop,
-        tx: mpsc::Sender<Publish>,
+        tx: mpsc::Sender<ConnectionAction>,
     ) -> Result<(), Box<dyn Error>> {
         loop {
             match eventloop.poll().await {
                 Result::Ok(Event::Incoming(Packet::Publish(publish))) => {
-                    tx.send(publish).await?;
+                    tx.send(ConnectionAction { message: publish }).await?;
                 }
                 Result::Ok(event) => {
                     log::debug!("Ignored -> {:?}", event);
@@ -96,5 +98,29 @@ impl Connection {
         }
 
         Result::Ok(())
+    }
+
+    pub async fn publication_loop(
+        client: AsyncClient,
+        mut pub_rx: mpsc::Receiver<ConnectionResult>,
+    ) {
+        // This is the future in charge of publishing result messages and canceling if final
+        while let Some(res) = pub_rx.recv().await {
+            for elem in res.messages.into_iter() {
+                client
+                    .publish(
+                        elem.topic,
+                        elem.qos,
+                        elem.retain,
+                        Vec::from(&elem.payload[..]),
+                    )
+                    .await
+                    .unwrap();
+            }
+
+            if res.is_final {
+                client.cancel().await.unwrap();
+            }
+        }
     }
 }
