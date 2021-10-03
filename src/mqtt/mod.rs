@@ -18,8 +18,8 @@
 //
 
 mod connection;
-pub use connection::ConnectionInfo;
 pub use connection::{new_connection, publication_loop, subscription_loop};
+pub use connection::{ConnectionInfo, TopicInfo};
 
 mod actions;
 pub use actions::ConnectionMessage;
@@ -28,3 +28,4 @@ pub use actions::ConnectionState;
 
 mod createengine;
 pub use createengine::create_engine;
+pub use createengine::{ConnectionEngine, ConnectionReducer};

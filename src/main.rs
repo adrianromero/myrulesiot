@@ -19,21 +19,58 @@
 
 use rumqttc::{self, QoS};
 use std::error::Error;
-use tokio::join;
-use tokio::sync::mpsc;
-use tokio::task;
 
 mod mqtt;
-use mqtt::{ConnectionInfo, ConnectionMessage, ConnectionResult};
-
+use mqtt::{ConnectionEngine, ConnectionInfo, ConnectionMessage, ConnectionState};
 mod engine;
-
 mod mainengine;
+
+#[derive(Debug)]
+pub struct AppInfo {
+    one: String,
+    two: i32,
+    three: Vec<String>,
+}
+
+impl Default for AppInfo {
+    fn default() -> Self {
+        AppInfo {
+            one: "".into(),
+            two: 0,
+            three: vec![],
+        }
+    }
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
-    log::info!("Starting myrulesiot...");
+
+    let engine: ConnectionEngine<AppInfo> = mqtt::create_engine(
+        |state: &ConnectionState<AppInfo>, action: &ConnectionMessage| {
+            let mut messages = Vec::<ConnectionMessage>::new();
+            if "myhelloiot/alarm".eq(&action.topic) {
+                messages.push(ConnectionMessage {
+                    topic: "myhelloiot/modal".into(),
+                    qos: QoS::AtMostOnce,
+                    retain: false,
+                    payload: "0".into(),
+                })
+            }
+
+            let actionfinal = "myhelloiot/exit".eq(&action.topic) && "1234".eq(&action.payload);
+
+            //if action.message
+            ConnectionState {
+                info: AppInfo {
+                    two: state.info.two + 1,
+                    ..Default::default()
+                },
+                messages,
+                is_final: state.info.two == 120 || actionfinal,
+            }
+        },
+    );
 
     // Defines connection properties
     let connection_info = ConnectionInfo {
@@ -42,47 +79,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
         clean_session: true,
         ..Default::default()
     };
+    let subscriptions = vec![(String::from("myhelloiot/#"), QoS::AtMostOnce)];
 
-    let (sub_tx, sub_rx) = mpsc::channel::<ConnectionMessage>(10);
-    let (pub_tx, pub_rx) = mpsc::channel::<ConnectionResult>(10);
-
-    let (client, eventloop) = mqtt::new_connection(
-        connection_info,
-        vec![(String::from("myhelloiot/#"), QoS::AtMostOnce)],
-    )
-    .await?;
-
-    // Engine definition
-    let engine = mainengine::create_main_engine();
-
-    // Runtime things
-    let j1 = task::spawn(async move {
-        match engine::runtime_loop(engine, pub_tx, sub_rx).await {
-            Result::Ok(_) => {}
-            Result::Err(error) => {
-                log::warn!("Runtime error {}", error);
-            }
-        }
-        log::info!("Exiting spawn runtime engine...");
-    });
-
-    // MQTT things
-    let j2 = task::spawn(async move {
-        mqtt::publication_loop(client, pub_rx).await;
-        log::info!("Exiting spawn mqtt publication...");
-    });
-    let j3 = task::spawn(async move {
-        match mqtt::subscription_loop(eventloop, sub_tx).await {
-            Result::Ok(_) => {}
-            Result::Err(error) => {
-                log::warn!("Connection error {}", error);
-            }
-        }
-        log::info!("Exiting spawn mqtt subscription...");
-    });
-
-    let (_, _, _) = join!(j1, j2, j3);
-
+    log::info!("Starting myrulesiot...");
+    let r = mainengine::main_engine(engine, connection_info, subscriptions).await;
     log::info!("Exiting myrulesiot...");
-    Ok(())
+    r
 }

@@ -22,9 +22,9 @@ use crate::mqtt::{ConnectionMessage, ConnectionResult, ConnectionState};
 
 pub type ConnectionReducer<S> = fn(&ConnectionState<S>, &ConnectionMessage) -> ConnectionState<S>;
 
-pub fn create_engine<S>(
-    reduce: ConnectionReducer<S>,
-) -> Engine<ConnectionMessage, ConnectionResult, ConnectionState<S>> {
+pub type ConnectionEngine<S> = Engine<ConnectionMessage, ConnectionResult, ConnectionState<S>>;
+
+pub fn create_engine<S>(reduce: ConnectionReducer<S>) -> ConnectionEngine<S> {
     Engine {
         reduce: reduce,
         template: |state: &ConnectionState<S>| ConnectionResult {
