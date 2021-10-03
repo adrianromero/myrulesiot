@@ -17,20 +17,8 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use std::error::Error;
-use std::fmt::{Debug, Display};
+use std::fmt::Debug;
 use tokio::sync::mpsc;
-
-// pub trait Engine<A, R, S> {
-//     fn reduce(&self, state: &S, action: &A) -> S;
-//     fn template(&self, state: &S) -> R;
-//     fn is_final(&self, result: &R) -> bool;
-// }
-
-// pub trait IOQueue<A, R> {
-//     fn take(&self) -> Result<A, io::Error>;
-//     fn put(&self, result: &R) -> Result<(), io::Error>;
-// }
 
 pub struct Engine<A, R, S> {
     pub reduce: fn(&S, &A) -> S,
@@ -45,7 +33,8 @@ impl RuntimeEngine {
         engine: Engine<A, R, S>,
         tx: mpsc::Sender<R>,
         mut rx: mpsc::Receiver<A>,
-    ) where
+    ) -> Result<(), mpsc::error::SendError<R>>
+    where
         A: Debug,
         R: Debug,
         S: Default + Debug,
@@ -65,11 +54,12 @@ impl RuntimeEngine {
 
             let is_final = (engine.is_final)(&result);
 
-            tx.send(result).await.unwrap();
+            tx.send(result).await?;
 
             if is_final {
                 break;
             }
         }
+        Ok(())
     }
 }

@@ -17,9 +17,8 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use rumqttc::{self, Publish, QoS};
+use rumqttc::{self, AsyncClient, Publish, QoS};
 use std::error::Error;
-use std::future::Future;
 use tokio::sync::mpsc;
 
 mod mqtt;
@@ -42,16 +41,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
         ..Default::default()
     };
 
+    let (sub_tx, sub_rx) = mpsc::channel::<Publish>(10);
+    let (pub_tx, pub_rx) = mpsc::channel::<ConnectionResult>(10);
+
     let (client, eventloop) = Connection::new(
         connection_info,
         vec![(String::from("myhelloiot/modal"), QoS::AtMostOnce)],
     )
     .await?;
 
-    let (sub_tx, sub_rx) = mpsc::channel::<Publish>(10);
-    let (pub_tx, mut pub_rx) = mpsc::channel::<ConnectionResult>(10);
-
-    let publishing = async move {
+    async fn publishing(client: AsyncClient, mut pub_rx: mpsc::Receiver<ConnectionResult>) {
         // This is the future in charge of publishing result messages and canceling if final
         while let Some(res) = pub_rx.recv().await {
             for elem in res.messages.into_iter() {
@@ -70,11 +69,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 client.cancel().await.unwrap();
             }
         }
-        log::info!("Exiting spawn publishing...");
-    };
+    }
 
-    let j1 = tokio::task::spawn(publishing);
-
+    // Engine definition
     fn reduce(state: &u32, _action: &Publish) -> u32 {
         state + 1
     }
@@ -86,24 +83,38 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    fn is_final(result: &ConnectionResult) -> bool {
-        result.is_final
-    }
-
     let engine: Engine<Publish, ConnectionResult, u32> = Engine {
         reduce,
         template,
-        is_final,
+        is_final: |result: &ConnectionResult| result.is_final,
     };
 
+    // Runtime things
     let j2 = tokio::task::spawn(async move {
-        RuntimeEngine::do_loop(engine, pub_tx, sub_rx).await;
-        log::info!("Exiting spawn receiver...");
+        match RuntimeEngine::do_loop(engine, pub_tx, sub_rx).await {
+            Result::Ok(_) => {}
+            Result::Err(error) => {
+                log::warn!("Runtime error {}", error);
+            }
+        }
+        log::info!("Exiting spawn engine...");
     });
 
-    Connection::do_loop(eventloop, sub_tx).await?;
-
-    let (_, _) = tokio::join!(j1, j2);
+    // MQTT things
+    let j1 = tokio::task::spawn(async move {
+        publishing(client, pub_rx).await;
+        log::info!("Exiting spawn mqtt publishing...");
+    });
+    let j3 = tokio::task::spawn(async move {
+        match Connection::do_loop(eventloop, sub_tx).await {
+            Result::Ok(_) => {}
+            Result::Err(error) => {
+                log::warn!("Connection error {}", error);
+            }
+        }
+        log::info!("Exiting spawn mqtt subscription...");
+    });
+    let (_, _, _) = tokio::join!(j1, j2, j3);
 
     log::info!("Exiting myrulesiot...");
     Ok(())

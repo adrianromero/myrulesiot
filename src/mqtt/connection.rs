@@ -78,8 +78,7 @@ impl Connection {
         tx: mpsc::Sender<Publish>,
     ) -> Result<(), Box<dyn Error>> {
         loop {
-            let result = eventloop.poll().await;
-            match result {
+            match eventloop.poll().await {
                 Result::Ok(Event::Incoming(Packet::Publish(publish))) => {
                     tx.send(publish).await?;
                 }
