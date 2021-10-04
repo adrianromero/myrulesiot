@@ -23,26 +23,28 @@ use tokio::join;
 use tokio::sync::mpsc;
 use tokio::task;
 
+use super::{new_connection, publication_loop, subscription_loop};
+use super::{ConnectionInfo, ConnectionMessage, ConnectionResult, TopicInfo};
 use crate::engine;
-use crate::mqtt::{self, ConnectionInfo, ConnectionMessage, ConnectionResult, TopicInfo};
 
-pub async fn main_engine<S>(
-    engine: engine::Engine<ConnectionMessage, ConnectionResult, S>,
+pub async fn connection_engine<T, S>(
+    engine: engine::Engine<ConnectionMessage, ConnectionResult, T>,
     connection_info: ConnectionInfo,
-    subscriptions: Vec<TopicInfo>,
+    subscriptions: &[TopicInfo<S>],
 ) -> Result<(), Box<dyn Error>>
 where
-    S: Debug + Default + Send + 'static,
+    T: Debug + Default + Send + 'static,
+    S: Into<String> + Copy,
 {
     log::info!("Starting myrulesiot...");
 
     let (sub_tx, sub_rx) = mpsc::channel::<ConnectionMessage>(connection_info.cap);
     let (pub_tx, pub_rx) = mpsc::channel::<ConnectionResult>(connection_info.cap);
 
-    let (client, eventloop) = mqtt::new_connection(connection_info, subscriptions).await?;
+    let (client, eventloop) = new_connection(connection_info, subscriptions).await?;
 
     // Runtime things
-    let j1 = task::spawn(async move {
+    let enginetask = task::spawn(async move {
         match engine::runtime_loop(engine, pub_tx, sub_rx).await {
             Result::Ok(_) => {}
             Result::Err(error) => {
@@ -53,12 +55,12 @@ where
     });
 
     // MQTT things
-    let j2 = task::spawn(async move {
-        mqtt::publication_loop(client, pub_rx).await;
+    let mqttpublishtask = task::spawn(async move {
+        publication_loop(client, pub_rx).await;
         log::info!("Exiting spawn mqtt publication...");
     });
-    let j3 = task::spawn(async move {
-        match mqtt::subscription_loop(eventloop, sub_tx).await {
+    let mqttsubscribetask = task::spawn(async move {
+        match subscription_loop(eventloop, sub_tx).await {
             Result::Ok(_) => {}
             Result::Err(error) => {
                 log::warn!("Connection error {}", error);
@@ -67,7 +69,7 @@ where
         log::info!("Exiting spawn mqtt subscription...");
     });
 
-    let (_, _, _) = join!(j1, j2, j3);
+    let (_, _, _) = join!(enginetask, mqttpublishtask, mqttsubscribetask);
 
     log::info!("Exiting myrulesiot...");
     Ok(())

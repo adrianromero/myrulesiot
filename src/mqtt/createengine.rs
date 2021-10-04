@@ -17,12 +17,29 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+use super::{ConnectionMessage, ConnectionResult};
 use crate::engine::Engine;
-use crate::mqtt::{ConnectionMessage, ConnectionResult, ConnectionState};
 
 pub type ConnectionReducer<S> = fn(&ConnectionState<S>, &ConnectionMessage) -> ConnectionState<S>;
 
 pub type ConnectionEngine<S> = Engine<ConnectionMessage, ConnectionResult, ConnectionState<S>>;
+
+#[derive(Debug)]
+pub struct ConnectionState<S> {
+    pub info: S,
+    pub messages: Vec<ConnectionMessage>,
+    pub is_final: bool,
+}
+
+impl<S: Default> Default for ConnectionState<S> {
+    fn default() -> Self {
+        ConnectionState {
+            info: Default::default(),
+            messages: vec![],
+            is_final: false,
+        }
+    }
+}
 
 pub fn create_engine<S>(reduce: ConnectionReducer<S>) -> ConnectionEngine<S> {
     Engine {

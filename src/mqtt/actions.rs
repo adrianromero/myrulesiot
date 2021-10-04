@@ -45,20 +45,3 @@ pub struct ConnectionResult {
     pub messages: Vec<ConnectionMessage>,
     pub is_final: bool,
 }
-
-#[derive(Debug)]
-pub struct ConnectionState<S> {
-    pub info: S,
-    pub messages: Vec<ConnectionMessage>,
-    pub is_final: bool,
-}
-
-impl<S: Default> Default for ConnectionState<S> {
-    fn default() -> Self {
-        ConnectionState {
-            info: Default::default(),
-            messages: vec![],
-            is_final: false,
-        }
-    }
-}

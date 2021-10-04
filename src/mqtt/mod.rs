@@ -24,8 +24,10 @@ pub use connection::{ConnectionInfo, TopicInfo};
 mod actions;
 pub use actions::ConnectionMessage;
 pub use actions::ConnectionResult;
-pub use actions::ConnectionState;
 
 mod createengine;
 pub use createengine::create_engine;
-pub use createengine::{ConnectionEngine, ConnectionReducer};
+pub use createengine::{ConnectionEngine, ConnectionReducer, ConnectionState};
+
+mod connectionengine;
+pub use connectionengine::connection_engine;

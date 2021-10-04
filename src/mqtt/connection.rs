@@ -21,7 +21,7 @@ use rumqttc::{self, AsyncClient, ConnectionError, Event, EventLoop, MqttOptions,
 use std::error::Error;
 use tokio::sync::mpsc;
 
-use crate::mqtt::{ConnectionMessage, ConnectionResult};
+use super::{ConnectionMessage, ConnectionResult};
 
 #[derive(Debug)]
 pub struct ConnectionInfo {
@@ -48,11 +48,11 @@ impl Default for ConnectionInfo {
     }
 }
 
-pub type TopicInfo = (String, QoS);
+pub type TopicInfo<S> = (S, QoS);
 
-pub async fn new_connection(
+pub async fn new_connection<S: Into<String> + Copy>(
     connection_info: ConnectionInfo,
-    subscriptions: Vec<TopicInfo>,
+    subscriptions: &[TopicInfo<S>],
 ) -> Result<(AsyncClient, EventLoop), Box<dyn Error>> {
     let mut mqttoptions = MqttOptions::new(
         connection_info.id.clone(),
@@ -66,7 +66,7 @@ pub async fn new_connection(
 
     let (client, eventloop) = AsyncClient::new(mqttoptions, connection_info.cap);
 
-    for (topic, qos) in subscriptions.into_iter() {
+    for &(topic, qos) in subscriptions.iter() {
         client.subscribe(topic, qos).await?;
     }
 

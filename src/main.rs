@@ -21,9 +21,8 @@ use rumqttc::{self, QoS};
 use std::error::Error;
 
 mod mqtt;
-use mqtt::{ConnectionEngine, ConnectionInfo, ConnectionMessage, ConnectionState};
+use mqtt::{ConnectionInfo, ConnectionMessage, ConnectionState};
 mod engine;
-mod mainengine;
 
 #[derive(Debug)]
 pub struct AppInfo {
@@ -46,7 +45,7 @@ impl Default for AppInfo {
 async fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
 
-    let engine: ConnectionEngine<AppInfo> = mqtt::create_engine(
+    let engine = mqtt::create_engine(
         |state: &ConnectionState<AppInfo>, action: &ConnectionMessage| {
             let mut messages = Vec::<ConnectionMessage>::new();
             if "myhelloiot/alarm".eq(&action.topic) {
@@ -79,8 +78,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         clean_session: true,
         ..Default::default()
     };
-    let subscriptions = vec![(String::from("myhelloiot/#"), QoS::AtMostOnce)];
+    let subscriptions = &[("myhelloiot/#", QoS::AtMostOnce)];
 
     // This goes to mqtt module
-    mainengine::main_engine(engine, connection_info, subscriptions).await
+    mqtt::connection_engine(engine, connection_info, subscriptions).await
 }
