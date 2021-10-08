@@ -26,6 +26,7 @@ use tokio::task;
 use super::{new_connection, publication_loop, subscription_loop};
 use super::{ConnectionInfo, ConnectionMessage, ConnectionResult, TopicInfo};
 use crate::engine;
+use crate::timer;
 
 pub async fn connection_engine<T, S>(
     engine: engine::Engine<ConnectionMessage, ConnectionResult, T>,
@@ -40,6 +41,7 @@ where
 
     let (sub_tx, sub_rx) = mpsc::channel::<ConnectionMessage>(connection_info.cap);
     let (pub_tx, pub_rx) = mpsc::channel::<ConnectionResult>(connection_info.cap);
+    let timer_sub_tx = sub_tx.clone();
 
     let (client, eventloop) = new_connection(connection_info, subscriptions).await?;
 
@@ -69,7 +71,12 @@ where
         log::info!("Exiting spawn mqtt subscription...");
     });
 
-    let (_, _, _) = join!(enginetask, mqttpublishtask, mqttsubscribetask);
+    let timertask = task::spawn(async move {
+        timer::timer_loop(timer_sub_tx, 250).await;
+        log::info!("Exiting timer task...");
+    });
+
+    let _ = join!([enginetask, mqttpublishtask, mqttsubscribetask, timertask]);
 
     log::info!("Exiting myrulesiot...");
     Ok(())

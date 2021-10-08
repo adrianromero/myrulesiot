@@ -21,7 +21,7 @@ use std::fmt::Debug;
 use tokio::sync::mpsc;
 
 pub struct Engine<A, R, S> {
-    pub reduce: fn(&S, &A) -> S,
+    pub reduce: fn(S, A) -> S,
     pub template: fn(&S) -> R,
     pub is_final: fn(&R) -> bool,
 }
@@ -41,7 +41,7 @@ where
     while let Some(action) = rx.recv().await {
         log::info!("Persist action {:?}.", &action);
 
-        state = (engine.reduce)(&state, &action);
+        state = (engine.reduce)(state, action);
 
         log::info!("Persist state {:?}.", &state);
 

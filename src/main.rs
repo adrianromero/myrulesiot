@@ -23,6 +23,7 @@ use std::error::Error;
 mod mqtt;
 use mqtt::{ConnectionInfo, ConnectionMessage, ConnectionState};
 mod engine;
+mod timer;
 
 #[derive(Debug)]
 pub struct AppInfo {
@@ -46,7 +47,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
 
     let engine = mqtt::create_engine(
-        |state: &ConnectionState<AppInfo>, action: &ConnectionMessage| {
+        |state: ConnectionState<AppInfo>, action: ConnectionMessage| {
+            if "$MYRULESIOTSYSTEM/timer".eq(&action.topic) {
+                return ConnectionState {
+                    info: state.info,
+                    messages: vec![ConnectionMessage {
+                        topic: "myhelloiot/timer".into(),
+                        qos: QoS::AtMostOnce,
+                        retain: false,
+                        payload: action.payload,
+                    }],
+                    is_final: false,
+                };
+            }
+
             let mut messages = Vec::<ConnectionMessage>::new();
             if "myhelloiot/alarm".eq(&action.topic) {
                 messages.push(ConnectionMessage {
@@ -57,7 +71,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 })
             }
 
-            let actionfinal = "myhelloiot/exit".eq(&action.topic) && "1234".eq(&action.payload);
+            let is_final = "myhelloiot/exit".eq(&action.topic) && "1234".eq(&action.payload);
 
             //if action.message
             ConnectionState {
@@ -66,7 +80,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     ..Default::default()
                 },
                 messages,
-                is_final: state.info.two == 120 || actionfinal,
+                is_final,
             }
         },
     );
