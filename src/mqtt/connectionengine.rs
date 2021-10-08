@@ -76,7 +76,7 @@ where
         log::info!("Exiting timer task...");
     });
 
-    let _ = join!([enginetask, mqttpublishtask, mqttsubscribetask, timertask]);
+    let _ = join!(enginetask, mqttpublishtask, mqttsubscribetask, timertask);
 
     log::info!("Exiting myrulesiot...");
     Ok(())
