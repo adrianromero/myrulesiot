@@ -20,6 +20,7 @@
 use rumqttc::{self, AsyncClient, ConnectionError, Event, EventLoop, MqttOptions, Packet, QoS};
 use std::error::Error;
 use tokio::sync::mpsc;
+use tokio::task;
 
 use super::{ConnectionMessage, ConnectionResult};
 
@@ -73,14 +74,14 @@ pub async fn new_connection<S: Into<String> + Copy>(
     Ok((client, eventloop))
 }
 
-pub async fn subscription_loop(
-    mut eventloop: EventLoop,
+async fn subscription_loop(
     tx: mpsc::Sender<ConnectionMessage>,
+    mut eventloop: EventLoop,
 ) -> Result<(), Box<dyn Error>> {
     loop {
         match eventloop.poll().await {
             Result::Ok(Event::Incoming(Packet::Publish(publish))) => {
-                tx.send(ConnectionMessage::from(publish)).await?;
+                tx.send(ConnectionMessage::from(publish)).await?
             }
             Result::Ok(event) => {
                 log::debug!("Ignored -> {:?}", event);
@@ -89,8 +90,13 @@ pub async fn subscription_loop(
                 break;
             }
             Result::Err(error) => {
-                log::warn!("Error -> {:?}", error);
-                Result::Err(error)?;
+                tx.send(ConnectionMessage {
+                    topic: "$MYRULESIOTSYSTEM/control/exit".into(),
+                    payload: error.to_string().into(),
+                    ..Default::default()
+                })
+                .await?;
+                Result::Err(error)?
             }
         }
     }
@@ -98,9 +104,28 @@ pub async fn subscription_loop(
     Result::Ok(())
 }
 
-pub async fn publication_loop(client: AsyncClient, mut pub_rx: mpsc::Receiver<ConnectionResult>) {
+pub fn task_subscription_loop(
+    tx: &mpsc::Sender<ConnectionMessage>,
+    eventloop: EventLoop,
+) -> task::JoinHandle<()> {
+    let subs_tx = tx.clone();
+    task::spawn(async move {
+        match subscription_loop(subs_tx, eventloop).await {
+            Result::Ok(_) => {}
+            Result::Err(error) => {
+                log::warn!("MQTT error {}", error);
+            }
+        }
+        log::info!("Exiting spawn mqtt subscription...");
+    })
+}
+
+async fn publication_loop(
+    mut rx: mpsc::Receiver<ConnectionResult>,
+    client: AsyncClient,
+) -> Result<(), Box<dyn Error>> {
     // This is the future in charge of publishing result messages and canceling if final
-    while let Some(res) = pub_rx.recv().await {
+    while let Some(res) = rx.recv().await {
         for elem in res.messages.into_iter() {
             client
                 .publish(
@@ -109,12 +134,28 @@ pub async fn publication_loop(client: AsyncClient, mut pub_rx: mpsc::Receiver<Co
                     elem.retain,
                     Vec::from(&elem.payload[..]),
                 )
-                .await
-                .unwrap();
+                .await?;
         }
 
         if res.is_final {
-            client.cancel().await.unwrap();
+            client.cancel().await?;
         }
     }
+
+    Result::Ok(())
+}
+
+pub fn task_publication_loop(
+    rx: mpsc::Receiver<ConnectionResult>,
+    client: AsyncClient,
+) -> task::JoinHandle<()> {
+    task::spawn(async move {
+        match publication_loop(rx, client).await {
+            Result::Ok(_) => {}
+            Result::Err(error) => {
+                log::warn!("MQTT error {}", error);
+            }
+        }
+        log::info!("Exiting spawn mqtt publication...");
+    })
 }

@@ -18,7 +18,7 @@
 //
 
 mod connection;
-pub use connection::{new_connection, publication_loop, subscription_loop};
+pub use connection::{new_connection, task_publication_loop, task_subscription_loop};
 pub use connection::{ConnectionInfo, TopicInfo};
 
 mod actions;
@@ -28,6 +28,3 @@ pub use actions::ConnectionResult;
 mod createengine;
 pub use createengine::create_engine;
 pub use createengine::{ConnectionEngine, ConnectionReducer, ConnectionState};
-
-mod connectionengine;
-pub use connectionengine::connection_engine;

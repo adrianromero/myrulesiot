@@ -29,6 +29,17 @@ pub struct ConnectionMessage {
     pub payload: Bytes,
 }
 
+impl Default for ConnectionMessage {
+    fn default() -> Self {
+        ConnectionMessage {
+            topic: "".into(),
+            payload: Bytes::new(),
+            qos: QoS::AtLeastOnce,
+            retain: false,
+        }
+    }
+}
+
 impl From<Publish> for ConnectionMessage {
     fn from(p: Publish) -> ConnectionMessage {
         ConnectionMessage {

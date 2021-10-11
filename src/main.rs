@@ -19,9 +19,11 @@
 
 use rumqttc::{self, QoS};
 use std::error::Error;
+use tokio::join;
+use tokio::sync::mpsc;
 
 mod mqtt;
-use mqtt::{ConnectionInfo, ConnectionMessage, ConnectionState};
+use mqtt::{ConnectionInfo, ConnectionMessage, ConnectionResult, ConnectionState};
 mod engine;
 mod timer;
 
@@ -42,48 +44,50 @@ impl Default for AppInfo {
     }
 }
 
+fn app_reducer(
+    state: ConnectionState<AppInfo>,
+    action: ConnectionMessage,
+) -> ConnectionState<AppInfo> {
+    if "$MYRULESIOTSYSTEM/timer".eq(&action.topic) {
+        return ConnectionState {
+            info: state.info,
+            messages: vec![ConnectionMessage {
+                topic: "myhelloiot/timer".into(),
+                qos: QoS::AtMostOnce,
+                retain: false,
+                payload: action.payload,
+            }],
+            is_final: false,
+        };
+    }
+
+    let mut messages = Vec::<ConnectionMessage>::new();
+    if "myhelloiot/alarm".eq(&action.topic) {
+        messages.push(ConnectionMessage {
+            topic: "myhelloiot/modal".into(),
+            qos: QoS::AtMostOnce,
+            retain: false,
+            payload: "0".into(),
+        })
+    }
+
+    let is_final = "$MYRULESIOTSYSTEM/control/exit".eq(&action.topic);
+
+    //if action.message
+    ConnectionState {
+        info: AppInfo {
+            two: state.info.two + 1,
+            ..Default::default()
+        },
+        messages,
+        is_final,
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
-
-    let engine = mqtt::create_engine(
-        |state: ConnectionState<AppInfo>, action: ConnectionMessage| {
-            if "$MYRULESIOTSYSTEM/timer".eq(&action.topic) {
-                return ConnectionState {
-                    info: state.info,
-                    messages: vec![ConnectionMessage {
-                        topic: "myhelloiot/timer".into(),
-                        qos: QoS::AtMostOnce,
-                        retain: false,
-                        payload: action.payload,
-                    }],
-                    is_final: false,
-                };
-            }
-
-            let mut messages = Vec::<ConnectionMessage>::new();
-            if "myhelloiot/alarm".eq(&action.topic) {
-                messages.push(ConnectionMessage {
-                    topic: "myhelloiot/modal".into(),
-                    qos: QoS::AtMostOnce,
-                    retain: false,
-                    payload: "0".into(),
-                })
-            }
-
-            let is_final = "myhelloiot/exit".eq(&action.topic) && "1234".eq(&action.payload);
-
-            //if action.message
-            ConnectionState {
-                info: AppInfo {
-                    two: state.info.two + 1,
-                    ..Default::default()
-                },
-                messages,
-                is_final,
-            }
-        },
-    );
+    let engine = mqtt::create_engine(app_reducer);
 
     // Defines connection properties
     let connection_info = ConnectionInfo {
@@ -92,8 +96,24 @@ async fn main() -> Result<(), Box<dyn Error>> {
         clean_session: true,
         ..Default::default()
     };
-    let subscriptions = &[("myhelloiot/#", QoS::AtMostOnce)];
+    let subscriptions = &[
+        ("myhelloiot/#", QoS::AtMostOnce),
+        ("$MYRULESIOTSYSTEM/control/exit", QoS::AtMostOnce),
+    ];
+    let (client, eventloop) = mqtt::new_connection(connection_info, subscriptions).await?;
+    log::info!("Starting myrulesiot...");
 
-    // This goes to mqtt module
-    mqtt::connection_engine(engine, connection_info, subscriptions).await
+    let (sub_tx, sub_rx) = mpsc::channel::<ConnectionMessage>(10);
+    let (pub_tx, pub_rx) = mpsc::channel::<ConnectionResult>(10);
+
+    let timertask = timer::task_timer_loop(&sub_tx, 250);
+    let mqttsubscribetask = mqtt::task_subscription_loop(&sub_tx, eventloop);
+    let mqttpublishtask = mqtt::task_publication_loop(pub_rx, client);
+
+    let enginetask = engine::task_runtime_loop(&pub_tx, sub_rx, engine);
+
+    let _ = join!(enginetask, mqttpublishtask, mqttsubscribetask, timertask);
+
+    log::info!("Exiting myrulesiot...");
+    Ok(())
 }

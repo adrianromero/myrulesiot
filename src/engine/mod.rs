@@ -19,6 +19,7 @@
 
 use std::fmt::Debug;
 use tokio::sync::mpsc;
+use tokio::task;
 
 pub struct Engine<A, R, S> {
     pub reduce: fn(S, A) -> S,
@@ -27,9 +28,9 @@ pub struct Engine<A, R, S> {
 }
 
 pub async fn runtime_loop<A, R, S>(
-    engine: Engine<A, R, S>,
     tx: mpsc::Sender<R>,
     mut rx: mpsc::Receiver<A>,
+    engine: Engine<A, R, S>,
 ) -> Result<(), mpsc::error::SendError<R>>
 where
     A: Debug,
@@ -58,4 +59,26 @@ where
         }
     }
     Ok(())
+}
+
+pub fn task_runtime_loop<A, R, S>(
+    tx: &mpsc::Sender<R>,
+    rx: mpsc::Receiver<A>,
+    engine: Engine<A, R, S>,
+) -> task::JoinHandle<()>
+where
+    A: Send + Debug + 'static,
+    R: Send + Debug + 'static,
+    S: Send + Default + Debug + 'static,
+{
+    let engine_tx = tx.clone();
+    task::spawn(async move {
+        match runtime_loop(engine_tx, rx, engine).await {
+            Result::Ok(_) => {}
+            Result::Err(error) => {
+                log::warn!("Runtime error {}", error);
+            }
+        }
+        log::info!("Exiting spawn runtime engine...");
+    })
 }
