@@ -23,7 +23,7 @@ pub fn task_timer_loop(
             time::sleep(Duration::from_millis(duration)).await;
             if timer_tx
                 .send(ConnectionMessage {
-                    topic: "$MYRULESIOTSYSTEM/timer".into(),
+                    topic: "SYSMR/timer".into(),
                     retain: false,
                     qos: rumqttc::QoS::AtLeastOnce,
                     payload: system_millis().to_string().into(),

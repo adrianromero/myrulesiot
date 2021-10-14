@@ -63,7 +63,7 @@ where
 }
 
 pub fn task_runtime_loop<A, R, S>(
-    tx: &broadcast::Sender<R>,
+    tx: broadcast::Sender<R>,
     rx: mpsc::Receiver<A>,
     engine: Engine<A, R, S>,
 ) -> task::JoinHandle<()>
@@ -72,9 +72,8 @@ where
     R: Send + Debug + 'static,
     S: Send + Default + Debug + 'static,
 {
-    let engine_tx = tx.clone();
     task::spawn(async move {
-        match runtime_loop(engine_tx, rx, engine).await {
+        match runtime_loop(tx, rx, engine).await {
             Result::Ok(_) => {}
             Result::Err(error) => {
                 log::warn!("Runtime error {}", error);

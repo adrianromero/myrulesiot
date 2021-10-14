@@ -92,7 +92,7 @@ async fn subscription_loop(
             }
             Result::Err(error) => {
                 tx.send(ConnectionMessage {
-                    topic: "$MYRULESIOTSYSTEM/control/exit".into(),
+                    topic: "SYSMR/control/exit".into(),
                     payload: error.to_string().into(),
                     ..Default::default()
                 })

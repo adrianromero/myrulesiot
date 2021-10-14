@@ -29,6 +29,12 @@ pub struct ConnectionMessage {
     pub payload: Bytes,
 }
 
+impl ConnectionMessage {
+    pub fn matches(&self, filter: &str) -> bool {
+        rumqttc::matches(&self.topic, filter)
+    }
+}
+
 impl Default for ConnectionMessage {
     fn default() -> Self {
         ConnectionMessage {

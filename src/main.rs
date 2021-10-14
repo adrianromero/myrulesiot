@@ -45,34 +45,43 @@ impl Default for AppInfo {
     }
 }
 
-fn app_reducer(
-    state: ConnectionState<AppInfo>,
-    action: ConnectionMessage,
-) -> ConnectionState<AppInfo> {
-    if "$MYRULESIOTSYSTEM/timer".eq(&action.topic) {
-        return ConnectionState {
-            info: state.info,
-            messages: vec![ConnectionMessage {
-                topic: "myhelloiot/timer".into(),
-                qos: QoS::AtMostOnce,
-                retain: false,
-                payload: action.payload,
-            }],
-            is_final: false,
-        };
-    }
+fn app_final(_: &AppInfo, action: &ConnectionMessage) -> bool {
+    action.matches("SYSMR/control/exit")
+}
 
-    let mut messages = Vec::<ConnectionMessage>::new();
-    if "myhelloiot/alarm".eq(&action.topic) {
-        messages.push(ConnectionMessage {
+fn app_alarm(_: &AppInfo, action: &ConnectionMessage) -> Vec<ConnectionMessage> {
+    if action.matches("myhelloiot/alarm") {
+        return vec![ConnectionMessage {
             topic: "myhelloiot/modal".into(),
             qos: QoS::AtMostOnce,
             retain: false,
             payload: "0".into(),
-        })
+        }];
     }
+    vec![]
+}
 
-    let is_final = "$MYRULESIOTSYSTEM/control/exit".eq(&action.topic);
+fn app_timer(_: &AppInfo, action: &ConnectionMessage) -> Vec<ConnectionMessage> {
+    if action.matches("SYSMR/timer") {
+        return vec![ConnectionMessage {
+            topic: "myhelloiot/timer".into(),
+            qos: QoS::AtMostOnce,
+            retain: false,
+            payload: action.payload.clone(),
+        }];
+    }
+    vec![]
+}
+
+fn app_reducer(
+    state: ConnectionState<AppInfo>,
+    action: ConnectionMessage,
+) -> ConnectionState<AppInfo> {
+    let mut messages = Vec::<ConnectionMessage>::new();
+
+    messages.append(&mut app_timer(&state.info, &action));
+    messages.append(&mut app_alarm(&state.info, &action));
+    let is_final = app_final(&state.info, &action);
 
     //if action.message
     ConnectionState {
@@ -99,7 +108,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
     let subscriptions = &[
         ("myhelloiot/#", QoS::AtMostOnce),
-        ("$MYRULESIOTSYSTEM/control/exit", QoS::AtMostOnce),
+        ("SYSMR/control/exit", QoS::AtMostOnce),
     ];
     let (client, eventloop) = mqtt::new_connection(connection_info, subscriptions).await?;
     log::info!("Starting myrulesiot...");
@@ -111,7 +120,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mqttsubscribetask = mqtt::task_subscription_loop(&sub_tx, eventloop);
     let mqttpublishtask = mqtt::task_publication_loop(pub_rx, client); // or pub_tx.subscribe()
 
-    let enginetask = engine::task_runtime_loop(&pub_tx, sub_rx, engine);
+    let enginetask = engine::task_runtime_loop(pub_tx, sub_rx, engine);
 
     let _ = join!(enginetask, mqttpublishtask, mqttsubscribetask, timertask);
 
