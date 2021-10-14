@@ -20,6 +20,7 @@
 use rumqttc::{self, QoS};
 use std::error::Error;
 use tokio::join;
+use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 
 mod mqtt;
@@ -104,11 +105,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     log::info!("Starting myrulesiot...");
 
     let (sub_tx, sub_rx) = mpsc::channel::<ConnectionMessage>(10);
-    let (pub_tx, pub_rx) = mpsc::channel::<ConnectionResult>(10);
+    let (pub_tx, pub_rx) = broadcast::channel::<ConnectionResult>(10);
 
     let timertask = timer::task_timer_loop(&sub_tx, 250);
     let mqttsubscribetask = mqtt::task_subscription_loop(&sub_tx, eventloop);
-    let mqttpublishtask = mqtt::task_publication_loop(pub_rx, client);
+    let mqttpublishtask = mqtt::task_publication_loop(pub_rx, client); // or pub_tx.subscribe()
 
     let enginetask = engine::task_runtime_loop(&pub_tx, sub_rx, engine);
 

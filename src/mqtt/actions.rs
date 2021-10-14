@@ -51,7 +51,7 @@ impl From<Publish> for ConnectionMessage {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ConnectionResult {
     pub messages: Vec<ConnectionMessage>,
     pub is_final: bool,

@@ -19,6 +19,7 @@
 
 use rumqttc::{self, AsyncClient, ConnectionError, Event, EventLoop, MqttOptions, Packet, QoS};
 use std::error::Error;
+use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio::task;
 
@@ -121,11 +122,11 @@ pub fn task_subscription_loop(
 }
 
 async fn publication_loop(
-    mut rx: mpsc::Receiver<ConnectionResult>,
+    mut rx: broadcast::Receiver<ConnectionResult>,
     client: AsyncClient,
 ) -> Result<(), Box<dyn Error>> {
     // This is the future in charge of publishing result messages and canceling if final
-    while let Some(res) = rx.recv().await {
+    while let Ok(res) = rx.recv().await {
         for elem in res.messages.into_iter() {
             client
                 .publish(
@@ -146,7 +147,7 @@ async fn publication_loop(
 }
 
 pub fn task_publication_loop(
-    rx: mpsc::Receiver<ConnectionResult>,
+    rx: broadcast::Receiver<ConnectionResult>,
     client: AsyncClient,
 ) -> task::JoinHandle<()> {
     task::spawn(async move {
