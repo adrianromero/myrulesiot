@@ -33,6 +33,9 @@ impl ConnectionMessage {
     pub fn matches(&self, filter: &str) -> bool {
         rumqttc::matches(&self.topic, filter)
     }
+    pub fn matches_action(&self, filter: &str, payload: Bytes) -> bool {
+        rumqttc::matches(&self.topic, filter) && payload.eq(&self.payload)
+    }
 }
 
 impl Default for ConnectionMessage {

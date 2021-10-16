@@ -18,6 +18,8 @@
 //
 
 use rumqttc::{self, QoS};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::error::Error;
 use tokio::join;
 use tokio::sync::broadcast;
@@ -28,11 +30,12 @@ use mqtt::{ConnectionInfo, ConnectionMessage, ConnectionResult, ConnectionState}
 mod engine;
 mod timer;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AppInfo {
     one: String,
     two: i32,
     three: Vec<String>,
+    map: HashMap<&'static str, Vec<u8>>,
 }
 
 impl Default for AppInfo {
@@ -41,12 +44,58 @@ impl Default for AppInfo {
             one: "".into(),
             two: 0,
             three: vec![],
+            map: HashMap::new(),
         }
     }
 }
 
+#[derive(Serialize, Deserialize)]
+struct Temporizator(i32);
+impl Default for Temporizator {
+    fn default() -> Self {
+        Temporizator(-1)
+    }
+}
+
+fn app_light_temp(
+    mapinfo: &mut HashMap<&'static str, Vec<u8>>,
+    action: &ConnectionMessage,
+) -> Vec<ConnectionMessage> {
+    if action.matches_action("myhelloiot/light1/set", "1".into()) {
+        mapinfo.insert("app_temp", bincode::serialize(&Temporizator(12)).unwrap());
+        return vec![ConnectionMessage {
+            topic: "myhelloiot/light1/status".into(),
+            qos: QoS::AtMostOnce,
+            retain: false,
+            payload: "1".into(),
+        }];
+    }
+    if action.matches("myhelloiot/timer") {
+        let t = mapinfo
+            .get("app_temp")
+            .map(|s| bincode::deserialize::<Temporizator>(s).unwrap())
+            .unwrap_or(Default::default());
+        let counter = t.0;
+        if counter > 0 {
+            mapinfo.insert(
+                "app_temp",
+                bincode::serialize(&Temporizator(counter - 1)).unwrap(),
+            );
+        } else if counter == 0 {
+            mapinfo.insert("app_temp", bincode::serialize(&Temporizator(-1)).unwrap());
+            return vec![ConnectionMessage {
+                topic: "myhelloiot/light1/status".into(),
+                qos: QoS::AtMostOnce,
+                retain: false,
+                payload: "0".into(),
+            }];
+        }
+    }
+    vec![]
+}
+
 fn app_final(_: &AppInfo, action: &ConnectionMessage) -> bool {
-    action.matches("SYSMR/control/exit")
+    action.matches_action("SYSMR/control/exit", "1".into())
 }
 
 fn app_alarm(_: &AppInfo, action: &ConnectionMessage) -> Vec<ConnectionMessage> {
@@ -78,7 +127,9 @@ fn app_reducer(
     action: ConnectionMessage,
 ) -> ConnectionState<AppInfo> {
     let mut messages = Vec::<ConnectionMessage>::new();
+    let mut newmap = state.info.map.clone();
 
+    messages.append(&mut app_light_temp(&mut newmap, &action));
     messages.append(&mut app_timer(&state.info, &action));
     messages.append(&mut app_alarm(&state.info, &action));
     let is_final = app_final(&state.info, &action);
@@ -87,6 +138,7 @@ fn app_reducer(
     ConnectionState {
         info: AppInfo {
             two: state.info.two + 1,
+            map: newmap,
             ..Default::default()
         },
         messages,
