@@ -17,7 +17,7 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use rumqttc::{self, QoS};
+use rumqttc::{self, AsyncClient, EventLoop, QoS};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::error::Error;
@@ -31,14 +31,14 @@ mod engine;
 mod timer;
 
 #[derive(Debug, Clone)]
-pub struct AppInfo {
+pub struct AppInfo<'a> {
     one: String,
     two: i32,
     three: Vec<String>,
-    map: HashMap<&'static str, Vec<u8>>,
+    map: HashMap<&'a str, Vec<u8>>,
 }
 
-impl Default for AppInfo {
+impl Default for AppInfo<'_> {
     fn default() -> Self {
         AppInfo {
             one: "".into(),
@@ -58,11 +58,16 @@ impl Default for Temporizator {
 }
 
 fn app_light_temp(
-    mapinfo: &mut HashMap<&'static str, Vec<u8>>,
+    mapinfo: &mut HashMap<&str, Vec<u8>>,
     action: &ConnectionMessage,
 ) -> Vec<ConnectionMessage> {
-    if action.matches_action("myhelloiot/light1/set", "1".into()) {
-        mapinfo.insert("app_temp", bincode::serialize(&Temporizator(12)).unwrap());
+    if action.matches("myhelloiot/light1/set") {
+        let smillis = String::from_utf8_lossy(action.payload.as_ref());
+        let millis: i32 = smillis.parse().unwrap_or(5000) / 250;
+        mapinfo.insert(
+            "myhelloiot/light1/status",
+            bincode::serialize(&Temporizator(millis)).unwrap(),
+        );
         return vec![ConnectionMessage {
             topic: "myhelloiot/light1/status".into(),
             qos: QoS::AtMostOnce,
@@ -72,17 +77,20 @@ fn app_light_temp(
     }
     if action.matches("myhelloiot/timer") {
         let t = mapinfo
-            .get("app_temp")
+            .get("myhelloiot/light1/status")
             .map(|s| bincode::deserialize::<Temporizator>(s).unwrap())
             .unwrap_or(Default::default());
         let counter = t.0;
         if counter > 0 {
             mapinfo.insert(
-                "app_temp",
+                "myhelloiot/light1/status",
                 bincode::serialize(&Temporizator(counter - 1)).unwrap(),
             );
         } else if counter == 0 {
-            mapinfo.insert("app_temp", bincode::serialize(&Temporizator(-1)).unwrap());
+            mapinfo.insert(
+                "myhelloiot/light1/status",
+                bincode::serialize(&Temporizator(-1)).unwrap(),
+            );
             return vec![ConnectionMessage {
                 topic: "myhelloiot/light1/status".into(),
                 qos: QoS::AtMostOnce,
@@ -146,11 +154,7 @@ fn app_reducer(
     }
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    env_logger::init();
-    let engine = mqtt::create_engine(app_reducer);
-
+async fn connect_mqtt() -> Result<(AsyncClient, EventLoop), Box<dyn Error>> {
     // Defines connection properties
     let connection_info = ConnectionInfo {
         id: "rustclient-231483".into(),
@@ -162,7 +166,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
         ("myhelloiot/#", QoS::AtMostOnce),
         ("SYSMR/control/exit", QoS::AtMostOnce),
     ];
-    let (client, eventloop) = mqtt::new_connection(connection_info, subscriptions).await?;
+    mqtt::new_connection(connection_info, subscriptions).await
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    env_logger::init();
+    let engine = mqtt::create_engine(app_reducer);
+
+    let (client, eventloop) = connect_mqtt().await?;
     log::info!("Starting myrulesiot...");
 
     let (sub_tx, sub_rx) = mpsc::channel::<ConnectionMessage>(10);
