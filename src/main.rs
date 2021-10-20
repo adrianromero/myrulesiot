@@ -33,18 +33,12 @@ mod timer;
 
 #[derive(Debug, Clone)]
 pub struct AppInfo {
-    one: String,
-    two: i32,
-    three: Vec<String>,
     map: HashMap<String, Vec<u8>>,
 }
 
 impl Default for AppInfo {
     fn default() -> Self {
         AppInfo {
-            one: "".into(),
-            two: 0,
-            three: vec![],
             map: HashMap::new(),
         }
     }
@@ -90,11 +84,7 @@ fn app_reducer(
     let is_final = app_final(&state.info, &action);
 
     ConnectionState {
-        info: AppInfo {
-            two: state.info.two + 1,
-            map: newmap,
-            ..Default::default()
-        },
+        info: AppInfo { map: newmap },
         messages,
         is_final,
     }
