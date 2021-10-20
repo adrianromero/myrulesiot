@@ -66,18 +66,6 @@ fn app_alarm(_: &AppInfo, action: &ConnectionMessage) -> Vec<ConnectionMessage> 
     vec![]
 }
 
-fn app_timer(_: &AppInfo, action: &ConnectionMessage) -> Vec<ConnectionMessage> {
-    if action.matches("SYSMR/timer") {
-        return vec![ConnectionMessage {
-            topic: "myhelloiot/timer".into(),
-            qos: QoS::AtMostOnce,
-            retain: false,
-            payload: action.payload.clone(),
-        }];
-    }
-    vec![]
-}
-
 fn app_reducer(
     state: ConnectionState<AppInfo>,
     action: ConnectionMessage,
@@ -85,11 +73,20 @@ fn app_reducer(
     let mut messages = Vec::<ConnectionMessage>::new();
     let mut newmap = state.info.map.clone();
 
-    let light1_temp = rules::light_temp("myhelloiot/light1");
+    let reducers: Vec<
+        Box<
+            dyn FnOnce(&mut HashMap<String, Vec<u8>>, &ConnectionMessage) -> Vec<ConnectionMessage>,
+        >,
+    > = vec![
+        Box::new(rules::light_temp("myhelloiot/light1")),
+        Box::new(rules::forward_timer("myhelloiot/timer")),
+    ];
+    for f in reducers.into_iter() {
+        messages.append(&mut f(&mut newmap, &action));
+    }
 
-    messages.append(&mut light1_temp(&mut newmap, &action));
-    messages.append(&mut app_timer(&state.info, &action));
     messages.append(&mut app_alarm(&state.info, &action));
+
     let is_final = app_final(&state.info, &action);
 
     ConnectionState {

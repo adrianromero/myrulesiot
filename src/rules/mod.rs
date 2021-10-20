@@ -55,10 +55,7 @@ pub fn light_temp(
                 payload: "1".into(),
             }];
         }
-        if action.matches(
-            "SYSMR/timer
-        ",
-        ) {
+        if action.matches("SYSMR/timer") {
             let t = mapinfo
                 .get(&topic)
                 .map(|s| bincode::deserialize::<Temporizator>(s).unwrap())
@@ -83,6 +80,23 @@ pub fn light_temp(
             }
         }
 
+        vec![]
+    }
+}
+
+pub fn forward_timer(
+    strtopic: &str,
+) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ConnectionMessage) -> Vec<ConnectionMessage> {
+    let topic = strtopic.to_string();
+    move |_: &mut HashMap<String, Vec<u8>>, action: &ConnectionMessage| -> Vec<ConnectionMessage> {
+        if action.matches("SYSMR/timer") {
+            return vec![ConnectionMessage {
+                topic,
+                qos: QoS::AtMostOnce,
+                retain: false,
+                payload: action.payload.clone(),
+            }];
+        }
         vec![]
     }
 }
