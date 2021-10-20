@@ -84,6 +84,25 @@ pub fn light_temp(
     }
 }
 
+pub fn modal_value(
+    strtopic: &str,
+) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ConnectionMessage) -> Vec<ConnectionMessage> {
+    let topic = strtopic.to_string();
+    let mut topic_value = strtopic.to_string();
+    topic_value.push_str("/value");
+    move |_: &mut HashMap<String, Vec<u8>>, action: &ConnectionMessage| -> Vec<ConnectionMessage> {
+        if action.matches(&topic_value) {
+            return vec![ConnectionMessage {
+                topic,
+                qos: QoS::AtMostOnce,
+                retain: false,
+                payload: "0".into(),
+            }];
+        }
+        vec![]
+    }
+}
+
 pub fn forward_timer(
     strtopic: &str,
 ) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ConnectionMessage) -> Vec<ConnectionMessage> {

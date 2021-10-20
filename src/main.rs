@@ -48,18 +48,6 @@ fn app_final(_: &AppInfo, action: &ConnectionMessage) -> bool {
     action.matches_action("SYSMR/control/exit", "1".into())
 }
 
-fn app_alarm(_: &AppInfo, action: &ConnectionMessage) -> Vec<ConnectionMessage> {
-    if action.matches("myhelloiot/alarm") {
-        return vec![ConnectionMessage {
-            topic: "myhelloiot/modal".into(),
-            qos: QoS::AtMostOnce,
-            retain: false,
-            payload: "0".into(),
-        }];
-    }
-    vec![]
-}
-
 fn app_reducer(
     state: ConnectionState<AppInfo>,
     action: ConnectionMessage,
@@ -74,12 +62,11 @@ fn app_reducer(
     > = vec![
         Box::new(rules::light_temp("myhelloiot/light1")),
         Box::new(rules::forward_timer("myhelloiot/timer")),
+        Box::new(rules::modal_value("myhelloiot/alarm")),
     ];
     for f in reducers.into_iter() {
         messages.append(&mut f(&mut newmap, &action));
     }
-
-    messages.append(&mut app_alarm(&state.info, &action));
 
     let is_final = app_final(&state.info, &action);
 
