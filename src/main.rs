@@ -48,6 +48,16 @@ fn app_final(_: &AppInfo, action: &ConnectionMessage) -> bool {
     action.matches_action("SYSMR/control/exit", "1".into())
 }
 
+fn app_map_reducers(
+) -> Vec<Box<dyn FnOnce(&mut HashMap<String, Vec<u8>>, &ConnectionMessage) -> Vec<ConnectionMessage>>>
+{
+    vec![
+        Box::new(rules::light_temp("myhelloiot/light1")),
+        Box::new(rules::forward_timer("myhelloiot/timer")),
+        Box::new(rules::modal_value("myhelloiot/alarm")),
+    ]
+}
+
 fn app_reducer(
     state: ConnectionState<AppInfo>,
     action: ConnectionMessage,
@@ -55,16 +65,7 @@ fn app_reducer(
     let mut messages = Vec::<ConnectionMessage>::new();
     let mut newmap = state.info.map.clone();
 
-    let reducers: Vec<
-        Box<
-            dyn FnOnce(&mut HashMap<String, Vec<u8>>, &ConnectionMessage) -> Vec<ConnectionMessage>,
-        >,
-    > = vec![
-        Box::new(rules::light_temp("myhelloiot/light1")),
-        Box::new(rules::forward_timer("myhelloiot/timer")),
-        Box::new(rules::modal_value("myhelloiot/alarm")),
-    ];
-    for f in reducers.into_iter() {
+    for f in app_map_reducers() {
         messages.append(&mut f(&mut newmap, &action));
     }
 
