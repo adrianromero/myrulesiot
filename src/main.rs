@@ -26,7 +26,7 @@ use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 
 mod mqtt;
-use mqtt::{ConnectionInfo, ConnectionMessage, ConnectionResult, ConnectionState};
+use mqtt::{ActionMessage, ConnectionInfo, ConnectionMessage, ConnectionResult, ConnectionState};
 mod engine;
 mod rules;
 mod timer;
@@ -44,13 +44,12 @@ impl Default for AppInfo {
     }
 }
 
-fn app_final(_: &AppInfo, action: &ConnectionMessage) -> bool {
+fn app_final(_: &AppInfo, action: &ActionMessage) -> bool {
     action.matches_action("SYSMR/control/exit", "1".into())
 }
 
 fn app_map_reducers(
-) -> Vec<Box<dyn FnOnce(&mut HashMap<String, Vec<u8>>, &ConnectionMessage) -> Vec<ConnectionMessage>>>
-{
+) -> Vec<Box<dyn FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage>>> {
     vec![
         Box::new(rules::light_temp("myhelloiot/light1")),
         Box::new(rules::forward_timer("myhelloiot/timer")),
@@ -58,10 +57,7 @@ fn app_map_reducers(
     ]
 }
 
-fn app_reducer(
-    state: ConnectionState<AppInfo>,
-    action: ConnectionMessage,
-) -> ConnectionState<AppInfo> {
+fn app_reducer(state: ConnectionState<AppInfo>, action: ActionMessage) -> ConnectionState<AppInfo> {
     let mut messages = Vec::<ConnectionMessage>::new();
     let mut newmap = state.info.map.clone();
 
@@ -101,7 +97,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let (client, eventloop) = connect_mqtt().await?;
     log::info!("Starting myrulesiot...");
 
-    let (sub_tx, sub_rx) = mpsc::channel::<ConnectionMessage>(10);
+    let (sub_tx, sub_rx) = mpsc::channel::<ActionMessage>(10);
     let (pub_tx, pub_rx) = broadcast::channel::<ConnectionResult>(10);
 
     let timertask = timer::task_timer_loop(&sub_tx, 250);

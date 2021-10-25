@@ -23,7 +23,7 @@ use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio::task;
 
-use super::{ConnectionMessage, ConnectionResult};
+use super::{ActionMessage, ConnectionResult};
 
 #[derive(Debug)]
 pub struct ConnectionInfo {
@@ -76,13 +76,13 @@ pub async fn new_connection<S: Into<String> + Copy>(
 }
 
 async fn subscription_loop(
-    tx: mpsc::Sender<ConnectionMessage>,
+    tx: mpsc::Sender<ActionMessage>,
     mut eventloop: EventLoop,
 ) -> Result<(), Box<dyn Error>> {
     loop {
         match eventloop.poll().await {
             Result::Ok(Event::Incoming(Packet::Publish(publish))) => {
-                tx.send(ConnectionMessage::from(publish)).await?
+                tx.send(ActionMessage::from(publish)).await?
             }
             Result::Ok(event) => {
                 log::debug!("Ignored -> {:?}", event);
@@ -91,10 +91,9 @@ async fn subscription_loop(
                 break;
             }
             Result::Err(error) => {
-                tx.send(ConnectionMessage {
+                tx.send(ActionMessage {
                     topic: "SYSMR/control/exit".into(),
                     payload: error.to_string().into(),
-                    ..Default::default()
                 })
                 .await?;
                 Result::Err(error)?
@@ -106,7 +105,7 @@ async fn subscription_loop(
 }
 
 pub fn task_subscription_loop(
-    tx: &mpsc::Sender<ConnectionMessage>,
+    tx: &mpsc::Sender<ActionMessage>,
     eventloop: EventLoop,
 ) -> task::JoinHandle<()> {
     let subs_tx = tx.clone();

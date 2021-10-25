@@ -22,7 +22,7 @@ use rumqttc::QoS;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::mqtt::ConnectionMessage;
+use crate::mqtt::{ActionMessage, ConnectionMessage};
 
 #[derive(Serialize, Deserialize)]
 struct LightStatus {
@@ -48,11 +48,11 @@ fn get_light_status(mapinfo: &mut HashMap<String, Vec<u8>>, topic: &str) -> Ligh
 
 pub fn light_temp(
     strtopic: &str,
-) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ConnectionMessage) -> Vec<ConnectionMessage> {
+) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
     let topic = strtopic.to_string();
 
     move |mapinfo: &mut HashMap<String, Vec<u8>>,
-          action: &ConnectionMessage|
+          action: &ActionMessage|
           -> Vec<ConnectionMessage> {
         //LightStatus temporizator
         let topic_temp = topic.clone() + "/temp";
@@ -157,11 +157,11 @@ pub fn light_temp(
 
 pub fn modal_value(
     strtopic: &str,
-) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ConnectionMessage) -> Vec<ConnectionMessage> {
+) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
     let topic = strtopic.to_string();
     let mut topic_value = strtopic.to_string();
     topic_value.push_str("/value");
-    move |_: &mut HashMap<String, Vec<u8>>, action: &ConnectionMessage| -> Vec<ConnectionMessage> {
+    move |_: &mut HashMap<String, Vec<u8>>, action: &ActionMessage| -> Vec<ConnectionMessage> {
         if action.matches(&topic_value) {
             return vec![ConnectionMessage {
                 topic,
@@ -176,9 +176,9 @@ pub fn modal_value(
 
 pub fn forward_timer(
     strtopic: &str,
-) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ConnectionMessage) -> Vec<ConnectionMessage> {
+) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
     let topic = strtopic.to_string();
-    move |_: &mut HashMap<String, Vec<u8>>, action: &ConnectionMessage| -> Vec<ConnectionMessage> {
+    move |_: &mut HashMap<String, Vec<u8>>, action: &ActionMessage| -> Vec<ConnectionMessage> {
         if action.matches("SYSMR/timer") {
             return vec![ConnectionMessage {
                 topic,

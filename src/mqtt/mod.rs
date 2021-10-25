@@ -22,6 +22,7 @@ pub use connection::{new_connection, task_publication_loop, task_subscription_lo
 pub use connection::{ConnectionInfo, TopicInfo};
 
 mod actions;
+pub use actions::ActionMessage;
 pub use actions::ConnectionMessage;
 pub use actions::ConnectionResult;
 

@@ -22,14 +22,12 @@ use rumqttc::Publish;
 use rumqttc::QoS;
 
 #[derive(Debug, Clone)]
-pub struct ConnectionMessage {
-    pub qos: QoS,
-    pub retain: bool,
+pub struct ActionMessage {
     pub topic: String,
     pub payload: Bytes,
 }
 
-impl ConnectionMessage {
+impl ActionMessage {
     pub fn matches(&self, filter: &str) -> bool {
         rumqttc::matches(&self.topic, filter)
     }
@@ -38,23 +36,18 @@ impl ConnectionMessage {
     }
 }
 
-impl Default for ConnectionMessage {
-    fn default() -> Self {
-        ConnectionMessage {
-            topic: "".into(),
-            payload: Bytes::new(),
-            qos: QoS::AtLeastOnce,
-            retain: false,
-        }
-    }
+#[derive(Debug, Clone)]
+pub struct ConnectionMessage {
+    pub qos: QoS,
+    pub retain: bool,
+    pub topic: String,
+    pub payload: Bytes,
 }
 
-impl From<Publish> for ConnectionMessage {
-    fn from(p: Publish) -> ConnectionMessage {
-        ConnectionMessage {
+impl From<Publish> for ActionMessage {
+    fn from(p: Publish) -> ActionMessage {
+        ActionMessage {
             topic: p.topic,
-            retain: p.retain,
-            qos: p.qos,
             payload: p.payload,
         }
     }

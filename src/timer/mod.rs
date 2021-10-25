@@ -3,7 +3,7 @@ use tokio::sync::mpsc;
 use tokio::task;
 use tokio::time;
 
-use super::ConnectionMessage;
+use super::ActionMessage;
 
 pub fn system_millis() -> u128 {
     let start = SystemTime::now();
@@ -13,19 +13,14 @@ pub fn system_millis() -> u128 {
     epoch.as_millis()
 }
 
-pub fn task_timer_loop(
-    tx: &mpsc::Sender<ConnectionMessage>,
-    duration: u64,
-) -> task::JoinHandle<()> {
+pub fn task_timer_loop(tx: &mpsc::Sender<ActionMessage>, duration: u64) -> task::JoinHandle<()> {
     let timer_tx = tx.clone();
     task::spawn(async move {
         loop {
             time::sleep(Duration::from_millis(duration)).await;
             if timer_tx
-                .send(ConnectionMessage {
+                .send(ActionMessage {
                     topic: "SYSMR/timer".into(),
-                    retain: false,
-                    qos: rumqttc::QoS::AtLeastOnce,
                     payload: system_millis().to_string().into(),
                 })
                 .await

@@ -17,12 +17,12 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use super::{ConnectionMessage, ConnectionResult};
+use super::{ActionMessage, ConnectionMessage, ConnectionResult};
 use crate::engine::Engine;
 
-pub type ConnectionReducer<S> = fn(ConnectionState<S>, ConnectionMessage) -> ConnectionState<S>;
+pub type ConnectionReducer<S> = fn(ConnectionState<S>, ActionMessage) -> ConnectionState<S>;
 
-pub type ConnectionEngine<S> = Engine<ConnectionMessage, ConnectionResult, ConnectionState<S>>;
+pub type ConnectionEngine<S> = Engine<ActionMessage, ConnectionResult, ConnectionState<S>>;
 
 #[derive(Debug)]
 pub struct ConnectionState<S> {
