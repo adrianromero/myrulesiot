@@ -45,7 +45,7 @@ impl Default for AppInfo {
 }
 
 fn app_final(_: &AppInfo, action: &ActionMessage) -> bool {
-    action.matches_action("SYSMR/control/exit", "1".into())
+    action.matches_action("SYSMR/system_action", "exit".into())
 }
 
 fn app_map_reducers(
@@ -84,7 +84,7 @@ async fn connect_mqtt() -> Result<(AsyncClient, EventLoop), Box<dyn Error>> {
     };
     let subscriptions = &[
         ("myhelloiot/#", QoS::AtMostOnce),
-        ("SYSMR/control/exit", QoS::AtMostOnce),
+        ("SYSMR/system_action", QoS::AtMostOnce),
     ];
     mqtt::new_connection(connection_info, subscriptions).await
 }

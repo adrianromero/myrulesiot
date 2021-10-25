@@ -26,13 +26,13 @@ use crate::mqtt::{ActionMessage, ConnectionMessage};
 
 #[derive(Serialize, Deserialize)]
 struct LightStatus {
-    temp: i32,
+    temp: i64,
     value: String,
 }
 impl Default for LightStatus {
     fn default() -> Self {
         LightStatus {
-            temp: -1,
+            temp: 0,
             value: "0".to_string(),
         }
     }
@@ -58,20 +58,20 @@ pub fn light_temp(
         let topic_temp = topic.clone() + "/temp";
         if action.matches(&topic_temp) {
             let smillis = String::from_utf8_lossy(&action.payload);
-            let millis: i32 = smillis.parse().unwrap_or(5000) / 250;
+            let millis: i64 = smillis.parse().unwrap_or(5000);
             mapinfo.insert(
                 topic.clone(),
                 bincode::serialize(&LightStatus {
-                    temp: millis,
+                    temp: action.timestamp + millis,
                     value: "1".to_string(),
                 })
                 .unwrap(),
             );
             return vec![ConnectionMessage {
                 topic,
+                payload: "1".into(),
                 qos: QoS::AtMostOnce,
                 retain: false,
-                payload: "1".into(),
             }];
         }
 
@@ -82,16 +82,16 @@ pub fn light_temp(
             mapinfo.insert(
                 topic.clone(),
                 bincode::serialize(&LightStatus {
-                    temp: -1,
+                    temp: 0,
                     value: value.to_string(),
                 })
                 .unwrap(),
             );
             return vec![ConnectionMessage {
                 topic,
+                payload: value.to_string().into(),
                 qos: QoS::AtMostOnce,
                 retain: false,
-                payload: value.to_string().into(),
             }];
         }
 
@@ -106,47 +106,38 @@ pub fn light_temp(
                 mapinfo.insert(
                     topic.clone(),
                     bincode::serialize(&LightStatus {
-                        temp: -1,
+                        temp: 0,
                         value: newvalue,
                     })
                     .unwrap(),
                 );
                 return vec![ConnectionMessage {
                     topic,
+                    payload: newpayload,
                     qos: QoS::AtMostOnce,
                     retain: false,
-                    payload: newpayload,
                 }];
             }
         }
 
         // Timer for temporization
-        if action.matches("SYSMR/timer") {
+        if action.matches_action("SYSMR/user_action", "tick".into()) {
             let status = get_light_status(mapinfo, &topic);
-            let counter = status.temp;
-            if counter > 0 {
+            // if temporizator activated and time consumed then switch off
+            if status.temp > 0 && action.timestamp > status.temp {
                 mapinfo.insert(
                     topic.clone(),
                     bincode::serialize(&LightStatus {
-                        temp: counter - 1,
-                        ..status
-                    })
-                    .unwrap(),
-                );
-            } else if counter == 0 {
-                mapinfo.insert(
-                    topic.clone(),
-                    bincode::serialize(&LightStatus {
-                        temp: -1,
+                        temp: 0,
                         value: "0".to_string(),
                     })
                     .unwrap(),
                 );
                 return vec![ConnectionMessage {
                     topic,
+                    payload: "0".into(),
                     qos: QoS::AtMostOnce,
                     retain: false,
-                    payload: "0".into(),
                 }];
             }
         }
@@ -165,9 +156,9 @@ pub fn modal_value(
         if action.matches(&topic_value) {
             return vec![ConnectionMessage {
                 topic,
+                payload: "0".into(),
                 qos: QoS::AtMostOnce,
                 retain: false,
-                payload: "0".into(),
             }];
         }
         vec![]
@@ -179,12 +170,12 @@ pub fn forward_timer(
 ) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
     let topic = strtopic.to_string();
     move |_: &mut HashMap<String, Vec<u8>>, action: &ActionMessage| -> Vec<ConnectionMessage> {
-        if action.matches("SYSMR/timer") {
+        if action.matches_action("SYSMR/user_action", "tick".into()) {
             return vec![ConnectionMessage {
                 topic,
+                payload: action.timestamp.to_string().into(),
                 qos: QoS::AtMostOnce,
                 retain: false,
-                payload: action.payload.clone(),
             }];
         }
         vec![]

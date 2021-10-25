@@ -88,20 +88,11 @@ async fn subscription_loop(
                 log::debug!("Ignored -> {:?}", event);
             }
             Result::Err(ConnectionError::Cancel) => {
-                break;
+                break Result::Ok(());
             }
-            Result::Err(error) => {
-                tx.send(ActionMessage {
-                    topic: "SYSMR/control/exit".into(),
-                    payload: error.to_string().into(),
-                })
-                .await?;
-                Result::Err(error)?
-            }
+            Result::Err(error) => Result::Err(error)?,
         }
     }
-
-    Result::Ok(())
 }
 
 pub fn task_subscription_loop(
@@ -113,7 +104,7 @@ pub fn task_subscription_loop(
         match subscription_loop(subs_tx, eventloop).await {
             Result::Ok(_) => {}
             Result::Err(error) => {
-                log::warn!("MQTT error {}", error);
+                log::warn!("Subscription error {}", error);
             }
         }
         log::info!("Exiting spawn mqtt subscription...");
@@ -153,7 +144,7 @@ pub fn task_publication_loop(
         match publication_loop(rx, client).await {
             Result::Ok(_) => {}
             Result::Err(error) => {
-                log::warn!("MQTT error {}", error);
+                log::warn!("Publication error {}", error);
             }
         }
         log::info!("Exiting spawn mqtt publication...");

@@ -18,6 +18,7 @@
 //
 
 use bytes::Bytes;
+use chrono::Utc;
 use rumqttc::Publish;
 use rumqttc::QoS;
 
@@ -25,6 +26,7 @@ use rumqttc::QoS;
 pub struct ActionMessage {
     pub topic: String,
     pub payload: Bytes,
+    pub timestamp: i64,
 }
 
 impl ActionMessage {
@@ -36,12 +38,14 @@ impl ActionMessage {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct ConnectionMessage {
-    pub qos: QoS,
-    pub retain: bool,
-    pub topic: String,
-    pub payload: Bytes,
+impl Default for ActionMessage {
+    fn default() -> ActionMessage {
+        ActionMessage {
+            topic: String::new(),
+            payload: Bytes::new(),
+            timestamp: Utc::now().timestamp_millis(),
+        }
+    }
 }
 
 impl From<Publish> for ActionMessage {
@@ -49,8 +53,17 @@ impl From<Publish> for ActionMessage {
         ActionMessage {
             topic: p.topic,
             payload: p.payload,
+            ..ActionMessage::default()
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct ConnectionMessage {
+    pub qos: QoS,
+    pub retain: bool,
+    pub topic: String,
+    pub payload: Bytes,
 }
 
 #[derive(Debug, Clone)]
