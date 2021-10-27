@@ -21,9 +21,9 @@ use rumqttc::{self, AsyncClient, EventLoop, QoS};
 
 use std::collections::HashMap;
 use std::error::Error;
-use tokio::join;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
+use tokio::try_join;
 
 mod mqtt;
 use mqtt::{ActionMessage, ConnectionInfo, ConnectionMessage, ConnectionResult, ConnectionState};
@@ -51,7 +51,7 @@ fn app_final(_: &AppInfo, action: &ActionMessage) -> bool {
 fn app_map_reducers(
 ) -> Vec<Box<dyn FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage>>> {
     vec![
-        Box::new(rules::light_temp("myhelloiot/light1")),
+        Box::new(rules::light_actions("myhelloiot/light1")),
         Box::new(rules::forward_timer("myhelloiot/timer")),
         Box::new(rules::modal_value("myhelloiot/alarm")),
     ]
@@ -86,16 +86,16 @@ async fn connect_mqtt() -> Result<(AsyncClient, EventLoop), Box<dyn Error>> {
         ("myhelloiot/#", QoS::AtMostOnce),
         ("SYSMR/system_action", QoS::AtMostOnce),
     ];
+
     mqtt::new_connection(connection_info, subscriptions).await
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
-    let engine = mqtt::create_engine(app_reducer);
 
-    let (client, eventloop) = connect_mqtt().await?;
     log::info!("Starting myrulesiot...");
+    let (client, eventloop) = connect_mqtt().await?;
 
     let (sub_tx, sub_rx) = mpsc::channel::<ActionMessage>(10);
     let (pub_tx, pub_rx) = broadcast::channel::<ConnectionResult>(10);
@@ -104,9 +104,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mqttsubscribetask = mqtt::task_subscription_loop(&sub_tx, eventloop);
     let mqttpublishtask = mqtt::task_publication_loop(pub_rx, client); // or pub_tx.subscribe()
 
+    let engine = mqtt::create_engine(app_reducer);
     let enginetask = engine::task_runtime_loop(pub_tx, sub_rx, engine);
 
-    let _ = join!(enginetask, mqttpublishtask, mqttsubscribetask, timertask);
+    let _ = try_join!(enginetask, mqttpublishtask, mqttsubscribetask, timertask)?;
 
     log::info!("Exiting myrulesiot...");
     Ok(())

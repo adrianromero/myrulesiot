@@ -17,6 +17,8 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+use std::fmt;
+
 use rumqttc::{self, AsyncClient, ConnectionError, Event, EventLoop, MqttOptions, Packet, QoS};
 use std::error::Error;
 use tokio::sync::broadcast;
@@ -52,10 +54,13 @@ impl Default for ConnectionInfo {
 
 pub type TopicInfo<S> = (S, QoS);
 
-pub async fn new_connection<S: Into<String> + Copy>(
+pub async fn new_connection<S: Into<String> + fmt::Debug + Copy>(
     connection_info: ConnectionInfo,
     subscriptions: &[TopicInfo<S>],
 ) -> Result<(AsyncClient, EventLoop), Box<dyn Error>> {
+    log::info!("MQTT {:?}", &connection_info);
+    log::info!("MQTT Subscriptions {:?}", &subscriptions);
+
     let mut mqttoptions = MqttOptions::new(
         connection_info.id.clone(),
         connection_info.host.clone(),
@@ -101,20 +106,21 @@ pub fn task_subscription_loop(
 ) -> task::JoinHandle<()> {
     let subs_tx = tx.clone();
     task::spawn(async move {
+        log::debug!("Started MQTT subscription...");
         match subscription_loop(subs_tx, eventloop).await {
             Result::Ok(_) => {}
             Result::Err(error) => {
                 log::warn!("Subscription error {}", error);
             }
         }
-        log::info!("Exiting spawn mqtt subscription...");
+        log::debug!("Exited MQTT subscription...");
     })
 }
 
 async fn publication_loop(
     mut rx: broadcast::Receiver<ConnectionResult>,
     client: AsyncClient,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<(), rumqttc::ClientError> {
     // This is the future in charge of publishing result messages and canceling if final
     while let Ok(res) = rx.recv().await {
         for elem in res.messages.into_iter() {
@@ -141,12 +147,13 @@ pub fn task_publication_loop(
     client: AsyncClient,
 ) -> task::JoinHandle<()> {
     task::spawn(async move {
+        log::debug!("Started MQTT publication...");
         match publication_loop(rx, client).await {
             Result::Ok(_) => {}
             Result::Err(error) => {
                 log::warn!("Publication error {}", error);
             }
         }
-        log::info!("Exiting spawn mqtt publication...");
+        log::debug!("Started MQTT publication...");
     })
 }

@@ -39,14 +39,13 @@ impl Default for LightStatus {
 }
 
 fn get_light_status(mapinfo: &mut HashMap<String, Vec<u8>>, topic: &str) -> LightStatus {
-    let status = mapinfo
+    mapinfo
         .get(topic)
         .map(|s| bincode::deserialize::<LightStatus>(s).unwrap())
-        .unwrap_or(LightStatus::default());
-    status
+        .unwrap_or(LightStatus::default())
 }
 
-pub fn light_temp(
+pub fn light_actions(
     strtopic: &str,
 ) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
     let topic = strtopic.to_string();

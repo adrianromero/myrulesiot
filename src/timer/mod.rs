@@ -44,6 +44,7 @@ pub fn task_timer_loop(tx: &mpsc::Sender<ActionMessage>, duration: u64) -> task:
     // let schedule = Schedule::from_str(expression).unwrap();
 
     task::spawn(async move {
+        log::debug!("Started timer tick subscription...");
         loop {
             time::sleep(Duration::from_millis(duration)).await;
             if timer_tx
@@ -59,6 +60,6 @@ pub fn task_timer_loop(tx: &mpsc::Sender<ActionMessage>, duration: u64) -> task:
                 break;
             }
         }
-        log::info!("Exiting timer task...");
+        log::debug!("Exited timer tick subscription...");
     })
 }

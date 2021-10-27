@@ -41,15 +41,15 @@ where
     let mut state = Default::default();
 
     while let Some(action) = rx.recv().await {
-        log::info!("Persist action {:?}.", &action);
+        log::debug!("Persist action {:?}.", &action);
 
         state = (engine.reduce)(state, action);
 
-        log::info!("Persist state {:?}.", &state);
+        log::debug!("Persist state {:?}.", &state);
 
         let result = (engine.template)(&state);
 
-        log::info!("Persist result {:?}.", &result);
+        log::debug!("Persist result {:?}.", &result);
 
         let is_final = (engine.is_final)(&result);
 
@@ -73,12 +73,13 @@ where
     S: Send + Default + Debug + 'static,
 {
     task::spawn(async move {
+        log::info!("Started runtime engine...");
         match runtime_loop(tx, rx, engine).await {
             Result::Ok(_) => {}
             Result::Err(error) => {
                 log::warn!("Runtime error {}", error);
             }
         }
-        log::info!("Exiting spawn runtime engine...");
+        log::info!("Exited runtime engine...");
     })
 }
