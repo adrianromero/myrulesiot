@@ -17,16 +17,17 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use crate::mqtt::{ActionMessage, ConnectionMessage};
 use rumqttc::QoS;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use crate::mqtt::{ActionMessage, ConnectionMessage};
+
 #[derive(Serialize, Deserialize)]
 struct ListStatus {
     temp: Option<i64>,
-    current: Option<f64>,
-    values: Vec<Option<f64>>,
+    current: Option<Vec<u8>>,
+    values: Vec<Option<Vec<u8>>>,
 }
 impl Default for ListStatus {
     fn default() -> Self {
@@ -38,6 +39,18 @@ impl Default for ListStatus {
     }
 }
 
+fn values_to_string(values: &Vec<Option<Vec<u8>>>) -> String {
+    let newvalues: Vec<String> = values
+        .iter()
+        .map(|value| match value {
+            None => String::new(),
+            Some(v) => String::from_utf8_lossy(&v).to_string(),
+        })
+        .collect();
+
+    format!("[{}]", newvalues.join(","))
+}
+
 fn get_list_status(mapinfo: &mut HashMap<String, Vec<u8>>, topic: &str) -> ListStatus {
     mapinfo
         .get(topic)
@@ -47,21 +60,21 @@ fn get_list_status(mapinfo: &mut HashMap<String, Vec<u8>>, topic: &str) -> ListS
 
 pub fn save_list(
     strtopic: &str,
+    time_period: &chrono::Duration,
+    count_values: usize,
 ) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
     let topic = strtopic.to_string();
     let mut topic_store = strtopic.to_string();
     topic_store.push_str("/list");
     let mut topic_list = strtopic.to_string();
     topic_list.push_str("/list");
+    let time_tick: i64 = time_period.num_milliseconds() / count_values as i64;
     move |mapinfo: &mut HashMap<String, Vec<u8>>,
           action: &ActionMessage|
           -> Vec<ConnectionMessage> {
         if action.matches(&topic) {
             let mut status = get_list_status(mapinfo, &topic_store);
-            status.current = match String::from_utf8_lossy(&action.payload).parse::<f64>() {
-                Ok(f) => Some(f),
-                Err(_) => Some(f64::NAN),
-            };
+            status.current = Some(action.payload.to_vec());
             mapinfo.insert(topic_store, bincode::serialize(&status).unwrap());
             return vec![];
         }
@@ -73,30 +86,33 @@ pub fn save_list(
             match status.temp {
                 None => {
                     status.temp = Some(action.timestamp);
-                    status.values = vec![None; 10];
+                    status.values = vec![None; count_values];
                     if let Some(last) = status.values.last_mut() {
                         *last = status.current.clone();
                     }
                     mapinfo.insert(topic_store, bincode::serialize(&status).unwrap());
                     return vec![ConnectionMessage {
                         topic: topic_list,
-                        payload: format!("{:?}", status.values).into(),
+                        payload: values_to_string(&status.values).into(),
                         qos: QoS::AtMostOnce,
                         retain: false,
                     }];
                 }
                 Some(t) => {
-                    if action.timestamp > t + 1000 {
-                        status.temp = Some(t + 1000); // while because this also can be less than action.timestamp
-                        status.values.rotate_left(1);
-                        if let Some(last) = status.values.last_mut() {
-                            *last = status.current.clone();
+                    if action.timestamp > t + time_tick {
+                        let mut newt = t;
+                        while action.timestamp > newt + time_tick {
+                            newt = newt + time_tick;
+                            status.temp = Some(newt); // while because this also can be less than action.timestamp
+                            status.values.rotate_left(1);
+                            if let Some(last) = status.values.last_mut() {
+                                *last = status.current.clone();
+                            }
                         }
                         mapinfo.insert(topic_store, bincode::serialize(&status).unwrap());
-
                         return vec![ConnectionMessage {
                             topic: topic_list,
-                            payload: format!("{:?}", status.values).into(),
+                            payload: values_to_string(&status.values).into(),
                             qos: QoS::AtMostOnce,
                             retain: false,
                         }];

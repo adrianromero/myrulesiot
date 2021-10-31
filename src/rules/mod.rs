@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize};
 use crate::mqtt::{ActionMessage, ConnectionMessage};
 
 mod savelist;
-pub use savelist::save_list;
+pub use savelist::{save_list, save_value};
 
 #[derive(Serialize, Deserialize)]
 struct LightStatus {

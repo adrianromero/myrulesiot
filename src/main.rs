@@ -54,7 +54,12 @@ fn app_map_reducers(
         Box::new(rules::light_actions("myhelloiot/light1")),
         Box::new(rules::forward_timer("myhelloiot/timer")),
         Box::new(rules::modal_value("myhelloiot/alarm")),
-        Box::new(rules::save_list("myhelloiot/temperature")),
+        Box::new(rules::save_value("myhelloiot/temperature")),
+        Box::new(rules::save_list(
+            "myhelloiot/temperature",
+            &chrono::Duration::minutes(1),
+            20,
+        )),
     ]
 }
 
@@ -101,7 +106,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let (sub_tx, sub_rx) = mpsc::channel::<ActionMessage>(10);
     let (pub_tx, pub_rx) = broadcast::channel::<ConnectionResult>(10);
 
-    let timertask = timer::task_timer_loop(&sub_tx, 250);
+    let timertask = timer::task_timer_loop(&sub_tx, &chrono::Duration::milliseconds(250));
     let mqttsubscribetask = mqtt::task_subscription_loop(&sub_tx, eventloop);
     let mqttpublishtask = mqtt::task_publication_loop(pub_rx, client); // or pub_tx.subscribe()
 

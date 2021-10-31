@@ -17,36 +17,22 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use std::time::Duration;
-// use job_scheduler::{Job, JobScheduler};
-// use chrono::Duration;
-
 use tokio::sync::mpsc;
 use tokio::task;
 use tokio::time;
 
 use crate::mqtt::ActionMessage;
 
-// fn job_scheduler() {
-//     let mut sched = JobScheduler::new();
-//     sched.add(Job::new("1/10 * * * * *".parse().unwrap(), || {
-//         println!("I get executed every 10 seconds!");
-//     }));
-//     loop {
-//         sched.tick();
-//         std::thread::sleep(Duration::from_millis(500));
-//     }
-// }
-
-pub fn task_timer_loop(tx: &mpsc::Sender<ActionMessage>, duration: u64) -> task::JoinHandle<()> {
+pub fn task_timer_loop(
+    tx: &mpsc::Sender<ActionMessage>,
+    duration: &chrono::Duration,
+) -> task::JoinHandle<()> {
     let timer_tx = tx.clone();
-    // let expression = "0   30   9,12,15     1,15       May-Aug  Mon,Wed,Fri  2018/2";
-    // let schedule = Schedule::from_str(expression).unwrap();
-
+    let time_duration = time::Duration::from_millis(duration.num_milliseconds() as u64);
     task::spawn(async move {
         log::debug!("Started timer tick subscription...");
         loop {
-            time::sleep(Duration::from_millis(duration)).await;
+            time::sleep(time_duration).await;
             if timer_tx
                 .send(ActionMessage {
                     topic: "SYSMR/user_action".into(),
