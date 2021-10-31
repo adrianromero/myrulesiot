@@ -17,10 +17,10 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use rumqttc::{self, AsyncClient, EventLoop, QoS};
-
 use std::collections::HashMap;
 use std::error::Error;
+
+use rumqttc::{AsyncClient, ClientError, EventLoop, QoS};
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio::try_join;
@@ -32,7 +32,7 @@ mod rules;
 mod timer;
 
 #[derive(Debug, Clone)]
-pub struct AppInfo {
+struct AppInfo {
     map: HashMap<String, Vec<u8>>,
 }
 
@@ -54,6 +54,7 @@ fn app_map_reducers(
         Box::new(rules::light_actions("myhelloiot/light1")),
         Box::new(rules::forward_timer("myhelloiot/timer")),
         Box::new(rules::modal_value("myhelloiot/alarm")),
+        Box::new(rules::save_list("myhelloiot/temperature")),
     ]
 }
 
@@ -74,7 +75,7 @@ fn app_reducer(state: ConnectionState<AppInfo>, action: ActionMessage) -> Connec
     }
 }
 
-async fn connect_mqtt() -> Result<(AsyncClient, EventLoop), Box<dyn Error>> {
+async fn connect_mqtt() -> Result<(AsyncClient, EventLoop), ClientError> {
     // Defines connection properties
     let connection_info = ConnectionInfo {
         id: "rustclient-231483".into(),

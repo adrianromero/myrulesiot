@@ -17,22 +17,26 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+use std::collections::HashMap;
+
 use bytes::Bytes;
 use rumqttc::QoS;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 use crate::mqtt::{ActionMessage, ConnectionMessage};
 
+mod savelist;
+pub use savelist::save_list;
+
 #[derive(Serialize, Deserialize)]
 struct LightStatus {
-    temp: i64,
+    temp: Option<i64>,
     value: String,
 }
 impl Default for LightStatus {
     fn default() -> Self {
         LightStatus {
-            temp: 0,
+            temp: None,
             value: "0".to_string(),
         }
     }
@@ -42,7 +46,7 @@ fn get_light_status(mapinfo: &mut HashMap<String, Vec<u8>>, topic: &str) -> Ligh
     mapinfo
         .get(topic)
         .map(|s| bincode::deserialize::<LightStatus>(s).unwrap())
-        .unwrap_or(LightStatus::default())
+        .unwrap_or_default()
 }
 
 pub fn light_actions(
@@ -61,7 +65,7 @@ pub fn light_actions(
             mapinfo.insert(
                 topic.clone(),
                 bincode::serialize(&LightStatus {
-                    temp: action.timestamp + millis,
+                    temp: Some(action.timestamp + millis),
                     value: "1".to_string(),
                 })
                 .unwrap(),
@@ -81,7 +85,7 @@ pub fn light_actions(
             mapinfo.insert(
                 topic.clone(),
                 bincode::serialize(&LightStatus {
-                    temp: 0,
+                    temp: None,
                     value: value.to_string(),
                 })
                 .unwrap(),
@@ -105,7 +109,7 @@ pub fn light_actions(
                 mapinfo.insert(
                     topic.clone(),
                     bincode::serialize(&LightStatus {
-                        temp: 0,
+                        temp: None,
                         value: newvalue,
                     })
                     .unwrap(),
@@ -123,21 +127,23 @@ pub fn light_actions(
         if action.matches_action("SYSMR/user_action", "tick".into()) {
             let status = get_light_status(mapinfo, &topic);
             // if temporizator activated and time consumed then switch off
-            if status.temp > 0 && action.timestamp > status.temp {
-                mapinfo.insert(
-                    topic.clone(),
-                    bincode::serialize(&LightStatus {
-                        temp: 0,
-                        value: "0".to_string(),
-                    })
-                    .unwrap(),
-                );
-                return vec![ConnectionMessage {
-                    topic,
-                    payload: "0".into(),
-                    qos: QoS::AtMostOnce,
-                    retain: false,
-                }];
+            if let Some(t) = status.temp {
+                if action.timestamp > t {
+                    mapinfo.insert(
+                        topic.clone(),
+                        bincode::serialize(&LightStatus {
+                            temp: None,
+                            value: "0".to_string(),
+                        })
+                        .unwrap(),
+                    );
+                    return vec![ConnectionMessage {
+                        topic,
+                        payload: "0".into(),
+                        qos: QoS::AtMostOnce,
+                        retain: false,
+                    }];
+                }
             }
         }
 

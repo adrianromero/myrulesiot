@@ -19,7 +19,9 @@
 
 use std::fmt;
 
-use rumqttc::{self, AsyncClient, ConnectionError, Event, EventLoop, MqttOptions, Packet, QoS};
+use rumqttc::{
+    self, AsyncClient, ClientError, ConnectionError, Event, EventLoop, MqttOptions, Packet, QoS,
+};
 use std::error::Error;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
@@ -57,7 +59,7 @@ pub type TopicInfo<S> = (S, QoS);
 pub async fn new_connection<S: Into<String> + fmt::Debug + Copy>(
     connection_info: ConnectionInfo,
     subscriptions: &[TopicInfo<S>],
-) -> Result<(AsyncClient, EventLoop), Box<dyn Error>> {
+) -> Result<(AsyncClient, EventLoop), ClientError> {
     log::info!("MQTT {:?}", &connection_info);
     log::info!("MQTT Subscriptions {:?}", &subscriptions);
 
