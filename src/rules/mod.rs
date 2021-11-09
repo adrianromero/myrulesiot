@@ -124,7 +124,7 @@ pub fn light_actions(
         }
 
         // Timer for temporization
-        if action.matches_action("SYSMR/user_action", "tick".into()) {
+        if action.matches("SYSMR/user_action/tick") {
             let status = get_light_status(mapinfo, &topic);
             // if temporizator activated and time consumed then switch off
             if let Some(t) = status.temp {
@@ -170,15 +170,15 @@ pub fn modal_value(
     }
 }
 
-pub fn forward_timer(
+pub fn forward_user_action_tick(
     strtopic: &str,
 ) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
     let topic = strtopic.to_string();
     move |_: &mut HashMap<String, Vec<u8>>, action: &ActionMessage| -> Vec<ConnectionMessage> {
-        if action.matches_action("SYSMR/user_action", "tick".into()) {
+        if action.matches("SYSMR/user_action/tick") {
             return vec![ConnectionMessage {
                 topic,
-                payload: action.timestamp.to_string().into(),
+                payload: action.payload.clone(),
                 qos: QoS::AtMostOnce,
                 retain: false,
             }];

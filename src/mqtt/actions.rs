@@ -18,7 +18,6 @@
 //
 
 use bytes::Bytes;
-use chrono::Utc;
 use rumqttc::Publish;
 use rumqttc::QoS;
 
@@ -38,22 +37,12 @@ impl ActionMessage {
     }
 }
 
-impl Default for ActionMessage {
-    fn default() -> ActionMessage {
-        ActionMessage {
-            topic: String::new(),
-            payload: Bytes::new(),
-            timestamp: Utc::now().timestamp_millis(),
-        }
-    }
-}
-
 impl From<Publish> for ActionMessage {
     fn from(p: Publish) -> ActionMessage {
         ActionMessage {
             topic: p.topic,
             payload: p.payload,
-            ..ActionMessage::default()
+            timestamp: chrono::Local::now().timestamp_millis(),
         }
     }
 }

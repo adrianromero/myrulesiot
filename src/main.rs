@@ -51,14 +51,14 @@ fn app_final(_: &AppInfo, action: &ActionMessage) -> bool {
 fn app_map_reducers(
 ) -> Vec<Box<dyn FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage>>> {
     vec![
+        Box::new(rules::save_value("SYSMR/user_action/tick")),
+        Box::new(rules::forward_user_action_tick("myhelloiot/timer")),
         Box::new(rules::light_actions("myhelloiot/light1")),
-        Box::new(rules::forward_timer("myhelloiot/timer")),
         Box::new(rules::modal_value("myhelloiot/alarm")),
-        Box::new(rules::save_value("myhelloiot/temperature")),
         Box::new(rules::save_list(
             "myhelloiot/temperature",
-            &chrono::Duration::minutes(1),
-            20,
+            &chrono::Duration::seconds(10),
+            10,
         )),
     ]
 }

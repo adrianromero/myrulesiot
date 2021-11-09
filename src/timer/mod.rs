@@ -30,14 +30,15 @@ pub fn task_timer_loop(
     let timer_tx = tx.clone();
     let time_duration = time::Duration::from_millis(duration.num_milliseconds() as u64);
     task::spawn(async move {
-        log::debug!("Started timer tick subscription...");
+        log::debug!("Started user action tick subscription...");
         loop {
             time::sleep(time_duration).await;
+            let localtime = chrono::Local::now();
             if timer_tx
                 .send(ActionMessage {
-                    topic: "SYSMR/user_action".into(),
-                    payload: "tick".into(),
-                    ..ActionMessage::default()
+                    topic: "SYSMR/user_action/tick".to_string(),
+                    payload: localtime.to_rfc3339().into(),
+                    timestamp: localtime.timestamp_millis(),
                 })
                 .await
                 .is_err()
@@ -46,6 +47,6 @@ pub fn task_timer_loop(
                 break;
             }
         }
-        log::debug!("Exited timer tick subscription...");
+        log::debug!("Exited user action tick subscription...");
     })
 }
