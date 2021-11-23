@@ -18,7 +18,6 @@
 //
 
 use std::fmt::Debug;
-use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio::task;
 
@@ -29,10 +28,10 @@ pub struct Engine<A, R, S> {
 }
 
 pub async fn runtime_loop<A, R, S>(
-    tx: broadcast::Sender<R>,
+    tx: mpsc::Sender<R>,
     mut rx: mpsc::Receiver<A>,
     engine: Engine<A, R, S>,
-) -> Result<(), broadcast::error::SendError<R>>
+) -> Result<(), mpsc::error::SendError<R>>
 where
     A: Debug,
     R: Debug,
@@ -53,7 +52,7 @@ where
 
         let is_final = (engine.is_final)(&result);
 
-        tx.send(result)?;
+        tx.send(result).await?;
 
         if is_final {
             break;
@@ -63,7 +62,7 @@ where
 }
 
 pub fn task_runtime_loop<A, R, S>(
-    tx: broadcast::Sender<R>,
+    tx: mpsc::Sender<R>,
     rx: mpsc::Receiver<A>,
     engine: Engine<A, R, S>,
 ) -> task::JoinHandle<()>

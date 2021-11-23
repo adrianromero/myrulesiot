@@ -21,7 +21,6 @@ use std::collections::HashMap;
 use std::error::Error;
 
 use rumqttc::{AsyncClient, ClientError, EventLoop, QoS};
-use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio::try_join;
 
@@ -57,8 +56,8 @@ fn app_map_reducers(
         Box::new(rules::modal_value("myhelloiot/alarm")),
         Box::new(rules::save_list(
             "myhelloiot/temperature",
-            &chrono::Duration::seconds(10),
-            10,
+            &chrono::Duration::seconds(20),
+            40,
         )),
     ]
 }
@@ -104,11 +103,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let (client, eventloop) = connect_mqtt().await?;
 
     let (sub_tx, sub_rx) = mpsc::channel::<ActionMessage>(10);
-    let (pub_tx, pub_rx) = broadcast::channel::<ConnectionResult>(10);
+    let (pub_tx, pub_rx) = mpsc::channel::<ConnectionResult>(10);
 
     let timertask = timer::task_timer_loop(&sub_tx, &chrono::Duration::milliseconds(250));
     let mqttsubscribetask = mqtt::task_subscription_loop(&sub_tx, eventloop);
-    let mqttpublishtask = mqtt::task_publication_loop(pub_rx, client); // or pub_tx.subscribe()
+    let mqttpublishtask = mqtt::task_publication_loop(pub_rx, client); // or pub_tx.subscribe() if broadcast
 
     let engine = mqtt::create_engine(app_reducer);
     let enginetask = engine::task_runtime_loop(pub_tx, sub_rx, engine);

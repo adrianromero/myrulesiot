@@ -43,7 +43,7 @@ fn values_to_string(values: &Vec<Option<Vec<u8>>>) -> String {
     let newvalues: Vec<String> = values
         .iter()
         .map(|value| match value {
-            None => String::new(),
+            None => String::from("null"),
             Some(v) => String::from_utf8_lossy(&v).to_string(),
         })
         .collect();
@@ -80,7 +80,7 @@ pub fn save_list(
         }
 
         // Timer for temporization
-        if action.matches_action("SYSMR/user_action", "tick".into()) {
+        if action.matches("SYSMR/user_action/tick") {
             let mut status = get_list_status(mapinfo, &topic_store);
             // if temporizator activated and time consumed then switch off
             match status.temp {
