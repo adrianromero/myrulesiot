@@ -59,6 +59,10 @@ fn app_map_reducers(
             &chrono::Duration::seconds(20),
             40,
         )),
+        Box::new(rules::forward_action(
+            "zigbee2mqtt/0x000b57fffe4fc5ca",
+            "ESPURNA04/relay/0/set",
+        )),
     ]
 }
 
@@ -83,12 +87,13 @@ async fn connect_mqtt() -> Result<(AsyncClient, EventLoop), ClientError> {
     // Defines connection properties
     let connection_info = ConnectionInfo {
         id: "rustclient-231483".into(),
-        host: "localhost".into(),
+        host: "192.168.1.54".into(),
         clean_session: true,
         ..Default::default()
     };
     let subscriptions = &[
         ("myhelloiot/#", QoS::AtMostOnce),
+        ("zigbee2mqtt/0x000b57fffe4fc5ca", QoS::AtMostOnce),
         ("SYSMR/system_action", QoS::AtMostOnce),
     ];
 

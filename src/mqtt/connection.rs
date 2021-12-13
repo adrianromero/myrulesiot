@@ -86,13 +86,13 @@ async fn subscription_loop(
     mut eventloop: EventLoop,
 ) -> Result<(), Box<dyn Error>> {
     loop {
-        match eventloop.poll().await {
+        let event = eventloop.poll().await;
+        log::debug!("EventLoop Event -> {:?}", event);
+        match event {
             Result::Ok(Event::Incoming(Packet::Publish(publish))) => {
-                tx.send(ActionMessage::from(publish)).await?
+                tx.send(ActionMessage::from(publish)).await?;
             }
-            Result::Ok(event) => {
-                log::debug!("Ignored -> {:?}", event);
-            }
+            Result::Ok(_) => {}
             Result::Err(ConnectionError::Cancel) => {
                 break Result::Ok(());
             }
@@ -111,7 +111,7 @@ pub fn task_subscription_loop(
         match subscription_loop(subs_tx, eventloop).await {
             Result::Ok(_) => {}
             Result::Err(error) => {
-                log::warn!("Subscription error {}", error);
+                log::warn!("Subscription error {:?}", error);
             }
         }
         log::debug!("Exited MQTT subscription...");
@@ -125,6 +125,7 @@ async fn publication_loop(
     // This is the future in charge of publishing result messages and canceling if final
     while let Some(res) = rx.recv().await {
         for elem in res.messages.into_iter() {
+            log::debug!("Publication loop -> {:?}", elem);
             client
                 .publish(
                     elem.topic,

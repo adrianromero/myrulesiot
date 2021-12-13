@@ -21,33 +21,17 @@ use std::collections::HashMap;
 
 use bytes::Bytes;
 use rumqttc::QoS;
-use serde::{Deserialize, Serialize};
 
 use crate::mqtt::{ActionMessage, ConnectionMessage};
 
 mod savelist;
 pub use savelist::{save_list, save_value};
 
-#[derive(Serialize, Deserialize)]
-struct LightStatus {
-    temp: Option<i64>,
-    value: String,
-}
-impl Default for LightStatus {
-    fn default() -> Self {
-        LightStatus {
-            temp: None,
-            value: "0".to_string(),
-        }
-    }
-}
+mod zigbee;
+pub use zigbee::forward_action;
 
-fn get_light_status(mapinfo: &mut HashMap<String, Vec<u8>>, topic: &str) -> LightStatus {
-    mapinfo
-        .get(topic)
-        .map(|s| bincode::deserialize::<LightStatus>(s).unwrap())
-        .unwrap_or_default()
-}
+mod ligths;
+pub use ligths::{get_light_status, LightStatus};
 
 pub fn light_actions(
     strtopic: &str,
