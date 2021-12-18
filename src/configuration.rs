@@ -17,27 +17,24 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use rumqttc::{AsyncClient, ClientError, EventLoop, QoS};
 
-#[derive(Serialize, Deserialize)]
-pub struct LightStatus {
-    pub temp: Option<i64>,
-    pub value: String,
-}
+use crate::mqtt;
 
-impl Default for LightStatus {
-    fn default() -> Self {
-        LightStatus {
-            temp: None,
-            value: "0".to_string(),
-        }
-    }
-}
+pub async fn connect_mqtt() -> Result<(AsyncClient, EventLoop), ClientError> {
+    // Defines connection properties
+    let connection_info = mqtt::ConnectionInfo {
+        id: "rustclient-231483".into(),
+        host: "localhost".into(),
+        clean_session: true,
+        ..Default::default()
+    };
+    let subscriptions = &[
+        ("myhelloiot/#", QoS::AtMostOnce),
+        ("zigbee2mqtt/0x000b57fffe4fc5ca", QoS::AtMostOnce),
+        ("SYSMR/system_action", QoS::AtMostOnce),
+        ("ESPURNITA04/#", QoS::AtMostOnce),
+    ];
 
-pub fn get_light_status(mapinfo: &mut HashMap<String, Vec<u8>>, topic: &str) -> LightStatus {
-    mapinfo
-        .get(topic)
-        .map(|s| bincode::deserialize::<LightStatus>(s).unwrap())
-        .unwrap_or_default()
+    mqtt::new_connection(connection_info, subscriptions).await
 }

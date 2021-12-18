@@ -43,7 +43,7 @@ impl<S: Default> Default for ConnectionState<S> {
 
 pub fn create_engine<S>(reduce: ConnectionReducer<S>) -> ConnectionEngine<S> {
     Engine {
-        reduce: reduce,
+        reduce,
         template: |state: &ConnectionState<S>| ConnectionResult {
             messages: state.messages.to_owned(),
             is_final: state.is_final,

@@ -39,7 +39,7 @@ impl Default for ListStatus {
     }
 }
 
-fn values_to_string(values: &Vec<Option<Vec<u8>>>) -> String {
+fn values_to_string(values: &[Option<Vec<u8>>]) -> String {
     let newvalues: Vec<String> = values
         .iter()
         .map(|value| match value {
@@ -102,7 +102,7 @@ pub fn save_list(
                     if action.timestamp > t + time_tick {
                         let mut newt = t;
                         while action.timestamp > newt + time_tick {
-                            newt = newt + time_tick;
+                            newt += time_tick;
                             status.temp = Some(newt); // while because this also can be less than action.timestamp
                             status.values.rotate_left(1);
                             if let Some(last) = status.values.last_mut() {

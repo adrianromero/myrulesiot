@@ -20,15 +20,19 @@
 use std::collections::HashMap;
 use std::error::Error;
 
-use rumqttc::{AsyncClient, ClientError, EventLoop, QoS};
 use tokio::sync::mpsc;
 use tokio::try_join;
 
+mod configuration;
 mod mqtt;
-use mqtt::{ActionMessage, ConnectionInfo, ConnectionMessage, ConnectionResult, ConnectionState};
+use mqtt::{ActionMessage, ConnectionMessage, ConnectionResult, ConnectionState};
+mod devices;
 mod engine;
 mod rules;
 mod timer;
+
+use rules::lights;
+use rules::zigbee;
 
 #[derive(Debug, Clone)]
 struct AppInfo {
@@ -47,22 +51,33 @@ fn app_final(_: &AppInfo, action: &ActionMessage) -> bool {
     action.matches_action("SYSMR/system_action", "exit".into())
 }
 
-fn app_map_reducers(
-) -> Vec<Box<dyn FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage>>> {
+type FnReducer =
+    dyn FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage>;
+
+type ReducersVec = Vec<Box<FnReducer>>;
+
+fn app_map_reducers() -> ReducersVec {
     vec![
         Box::new(rules::save_value("SYSMR/user_action/tick")),
         Box::new(rules::forward_user_action_tick("myhelloiot/timer")),
-        Box::new(rules::light_actions("myhelloiot/light1")),
-        Box::new(rules::modal_value("myhelloiot/alarm")),
+        // Box::new(rules::light_actions("myhelloiot/light1")),
+        // Box::new(rules::modal_value("myhelloiot/alarm")),
         Box::new(rules::save_list(
             "myhelloiot/temperature",
             &chrono::Duration::seconds(20),
             40,
         )),
-        Box::new(rules::forward_action(
-            "zigbee2mqtt/0x000b57fffe4fc5ca",
-            "ESPURNA04/relay/0/set",
+        // Box::new(rules::forward_action(
+        //     "zigbee2mqtt/0x000b57fffe4fc5ca",
+        //     "ESPURNA04/relay/0/set",
+        // )),
+        Box::new(lights::toggle(
+            zigbee::actuator_toggle("zigbee2mqtt/0x000b57fffe4fc5ca"),
+            "ESPURNITA04/relay/0",
+            "ESPURNITA04/relay/0/set",
         )),
+        Box::new(lights::status("ESPURNITA04/relay/0")),
+        Box::new(devices::simulate_relay("ESPURNITA04/relay/0")),
     ]
 }
 
@@ -83,29 +98,12 @@ fn app_reducer(state: ConnectionState<AppInfo>, action: ActionMessage) -> Connec
     }
 }
 
-async fn connect_mqtt() -> Result<(AsyncClient, EventLoop), ClientError> {
-    // Defines connection properties
-    let connection_info = ConnectionInfo {
-        id: "rustclient-231483".into(),
-        host: "192.168.1.54".into(),
-        clean_session: true,
-        ..Default::default()
-    };
-    let subscriptions = &[
-        ("myhelloiot/#", QoS::AtMostOnce),
-        ("zigbee2mqtt/0x000b57fffe4fc5ca", QoS::AtMostOnce),
-        ("SYSMR/system_action", QoS::AtMostOnce),
-    ];
-
-    mqtt::new_connection(connection_info, subscriptions).await
-}
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
 
     log::info!("Starting myrulesiot...");
-    let (client, eventloop) = connect_mqtt().await?;
+    let (client, eventloop) = configuration::connect_mqtt().await?;
 
     let (sub_tx, sub_rx) = mpsc::channel::<ActionMessage>(10);
     let (pub_tx, pub_rx) = mpsc::channel::<ConnectionResult>(10);

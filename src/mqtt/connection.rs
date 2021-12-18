@@ -96,7 +96,7 @@ async fn subscription_loop(
             Result::Err(ConnectionError::Cancel) => {
                 break Result::Ok(());
             }
-            Result::Err(error) => Result::Err(error)?,
+            Result::Err(error) => return Result::Err(Box::new(error)),
         }
     }
 }
