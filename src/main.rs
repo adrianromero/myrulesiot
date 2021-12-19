@@ -34,65 +34,22 @@ mod timer;
 use rules::lights;
 use rules::zigbee;
 
-#[derive(Debug, Clone)]
-struct AppInfo {
-    map: HashMap<String, Vec<u8>>,
-}
-
-impl Default for AppInfo {
-    fn default() -> Self {
-        AppInfo {
-            map: HashMap::new(),
-        }
-    }
-}
-
-fn app_final(_: &AppInfo, action: &ActionMessage) -> bool {
+fn app_final(_: &HashMap<String, Vec<u8>>, action: &ActionMessage) -> bool {
     action.matches_action("SYSMR/system_action", "exit".into())
 }
 
-type FnReducer =
-    dyn FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage>;
-
-type ReducersVec = Vec<Box<FnReducer>>;
-
-fn app_map_reducers() -> ReducersVec {
-    vec![
-        Box::new(rules::save_value("SYSMR/user_action/tick")),
-        Box::new(rules::forward_user_action_tick("myhelloiot/timer")),
-        // Box::new(rules::light_actions("myhelloiot/light1")),
-        // Box::new(rules::modal_value("myhelloiot/alarm")),
-        Box::new(rules::save_list(
-            "myhelloiot/temperature",
-            &chrono::Duration::seconds(20),
-            40,
-        )),
-        // Box::new(rules::forward_action(
-        //     "zigbee2mqtt/0x000b57fffe4fc5ca",
-        //     "ESPURNA04/relay/0/set",
-        // )),
-        Box::new(lights::toggle(
-            zigbee::actuator_toggle("zigbee2mqtt/0x000b57fffe4fc5ca"),
-            "ESPURNITA04/relay/0",
-            "ESPURNITA04/relay/0/set",
-        )),
-        Box::new(lights::status("ESPURNITA04/relay/0")),
-        Box::new(devices::simulate_relay("ESPURNITA04/relay/0")),
-    ]
-}
-
-fn app_reducer(state: ConnectionState<AppInfo>, action: ActionMessage) -> ConnectionState<AppInfo> {
+fn app_reducer(state: ConnectionState, action: ActionMessage) -> ConnectionState {
     let mut messages = Vec::<ConnectionMessage>::new();
-    let mut newmap = state.info.map.clone();
+    let mut newmap = state.info.clone();
 
-    for f in app_map_reducers() {
+    for f in configuration::app_map_reducers() {
         messages.append(&mut f(&mut newmap, &action));
     }
 
     let is_final = app_final(&state.info, &action);
 
     ConnectionState {
-        info: AppInfo { map: newmap },
+        info: newmap,
         messages,
         is_final,
     }

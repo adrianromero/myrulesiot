@@ -17,21 +17,23 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+use std::collections::HashMap;
+
 use super::{ActionMessage, ConnectionMessage, ConnectionResult};
 use crate::engine::Engine;
 
-pub type ConnectionReducer<S> = fn(ConnectionState<S>, ActionMessage) -> ConnectionState<S>;
+pub type ConnectionReducer = fn(ConnectionState, ActionMessage) -> ConnectionState;
 
-pub type ConnectionEngine<S> = Engine<ActionMessage, ConnectionResult, ConnectionState<S>>;
+pub type ConnectionEngine = Engine<ActionMessage, ConnectionResult, ConnectionState>;
 
 #[derive(Debug)]
-pub struct ConnectionState<S> {
-    pub info: S,
+pub struct ConnectionState {
+    pub info: HashMap<String, Vec<u8>>,
     pub messages: Vec<ConnectionMessage>,
     pub is_final: bool,
 }
 
-impl<S: Default> Default for ConnectionState<S> {
+impl Default for ConnectionState {
     fn default() -> Self {
         ConnectionState {
             info: Default::default(),
@@ -41,10 +43,10 @@ impl<S: Default> Default for ConnectionState<S> {
     }
 }
 
-pub fn create_engine<S>(reduce: ConnectionReducer<S>) -> ConnectionEngine<S> {
+pub fn create_engine(reduce: ConnectionReducer) -> ConnectionEngine {
     Engine {
         reduce,
-        template: |state: &ConnectionState<S>| ConnectionResult {
+        template: |state: &ConnectionState| ConnectionResult {
             messages: state.messages.to_owned(),
             is_final: state.is_final,
         },
