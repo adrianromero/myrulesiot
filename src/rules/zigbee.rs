@@ -40,6 +40,22 @@ pub fn actuator_toggle(actuatortopic: &str) -> impl FnOnce(&ActionMessage) -> bo
     actuator(actuatortopic, "toggle")
 }
 
+pub fn actuator_brightness_up(actuatortopic: &str) -> impl FnOnce(&ActionMessage) -> bool {
+    actuator(actuatortopic, "brightness_up_click")
+}
+
+pub fn actuator_brightness_down(actuatortopic: &str) -> impl FnOnce(&ActionMessage) -> bool {
+    actuator(actuatortopic, "brightness_down_click")
+}
+
+pub fn actuator_arrow_right(actuatortopic: &str) -> impl FnOnce(&ActionMessage) -> bool {
+    actuator(actuatortopic, "arrow_right_click")
+}
+
+pub fn actuator_arrow_left(actuatortopic: &str) -> impl FnOnce(&ActionMessage) -> bool {
+    actuator(actuatortopic, "arrow_left_click")
+}
+
 // pub fn forward_action(
 //     stractiontopic: &str,
 //     strtopic: &str,

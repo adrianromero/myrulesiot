@@ -174,8 +174,10 @@ pub fn light_time(
 
 pub fn light_time_reset(
     strtopic: &str,
+    strtopicpub: &str,
 ) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
     let topic = strtopic.to_string();
+    let topicpub = strtopicpub.to_string();
     move |mapinfo: &mut HashMap<String, Vec<u8>>,
           action: &ActionMessage|
           -> Vec<ConnectionMessage> {
@@ -193,7 +195,7 @@ pub fn light_time_reset(
                         },
                     );
                     return vec![ConnectionMessage {
-                        topic,
+                        topic: topicpub,
                         payload: "0".into(),
                         qos: QoS::AtMostOnce,
                         retain: false,

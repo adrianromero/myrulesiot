@@ -23,7 +23,6 @@ use super::{ActionMessage, ConnectionMessage, ConnectionResult};
 use crate::engine::Engine;
 
 pub type ConnectionReducer = fn(ConnectionState, ActionMessage) -> ConnectionState;
-
 pub type ConnectionEngine = Engine<ActionMessage, ConnectionResult, ConnectionState>;
 
 #[derive(Debug)]

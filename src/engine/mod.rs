@@ -21,7 +21,12 @@ use std::fmt::Debug;
 use tokio::sync::mpsc;
 use tokio::task;
 
-pub struct Engine<A, R, S> {
+pub struct Engine<A, R, S>
+where
+    A: Debug,
+    R: Debug,
+    S: Debug + Default,
+{
     pub reduce: fn(S, A) -> S,
     pub template: fn(&S) -> R,
     pub is_final: fn(&R) -> bool,
@@ -35,7 +40,7 @@ pub async fn runtime_loop<A, R, S>(
 where
     A: Debug,
     R: Debug,
-    S: Default + Debug,
+    S: Debug + Default,
 {
     let mut state = Default::default();
 
@@ -67,9 +72,9 @@ pub fn task_runtime_loop<A, R, S>(
     engine: Engine<A, R, S>,
 ) -> task::JoinHandle<()>
 where
-    A: Send + Debug + 'static,
-    R: Send + Debug + 'static,
-    S: Send + Default + Debug + 'static,
+    A: Debug + Send + 'static,
+    R: Debug + Send + 'static,
+    S: Debug + Default + Send + 'static,
 {
     task::spawn(async move {
         log::info!("Started runtime engine...");

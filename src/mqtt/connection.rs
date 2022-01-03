@@ -29,7 +29,7 @@ use tokio::task;
 use super::{ActionMessage, ConnectionResult};
 
 #[derive(Debug)]
-pub struct ConnectionInfo {
+pub struct ConnectionValues {
     pub id: String,
     pub host: String,
     pub port: u16,
@@ -39,9 +39,9 @@ pub struct ConnectionInfo {
     pub cap: usize,
 }
 
-impl Default for ConnectionInfo {
+impl Default for ConnectionValues {
     fn default() -> Self {
-        ConnectionInfo {
+        ConnectionValues {
             id: String::from(""),
             host: String::from("localhost"),
             port: 1883,
@@ -53,11 +53,11 @@ impl Default for ConnectionInfo {
     }
 }
 
-pub type TopicInfo<S> = (S, QoS);
+pub type TopicInfo<'a> = (&'a str, QoS);
 
-pub async fn new_connection<S: Into<String> + fmt::Debug + Copy>(
-    connection_info: ConnectionInfo,
-    subscriptions: &[TopicInfo<S>],
+pub async fn new_connection<'a>(
+    connection_info: ConnectionValues,
+    subscriptions: &[TopicInfo<'a>],
 ) -> Result<(AsyncClient, EventLoop), ClientError> {
     log::info!("MQTT {:?}", &connection_info);
     log::info!("MQTT Subscriptions {:?}", &subscriptions);
@@ -74,7 +74,7 @@ pub async fn new_connection<S: Into<String> + fmt::Debug + Copy>(
 
     let (client, eventloop) = AsyncClient::new(mqttoptions, connection_info.cap);
 
-    for &(topic, qos) in subscriptions.iter() {
+    for &(topic, qos) in subscriptions {
         client.subscribe(topic, qos).await?;
     }
 

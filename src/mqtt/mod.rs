@@ -18,8 +18,8 @@
 //
 
 mod connection;
+pub use connection::ConnectionValues;
 pub use connection::{new_connection, task_publication_loop, task_subscription_loop};
-pub use connection::{ConnectionInfo, TopicInfo};
 
 mod actions;
 pub use actions::{ActionMessage, ConnectionMessage, ConnectionResult};

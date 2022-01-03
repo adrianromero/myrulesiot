@@ -29,7 +29,7 @@ use crate::zigbee;
 
 pub async fn connect_mqtt() -> Result<(AsyncClient, EventLoop), ClientError> {
     // Defines connection properties
-    let connection_info = mqtt::ConnectionInfo {
+    let connection_info = mqtt::ConnectionValues {
         id: "rustclient-231483".into(),
         host: "localhost".into(),
         clean_session: true,
@@ -37,9 +37,10 @@ pub async fn connect_mqtt() -> Result<(AsyncClient, EventLoop), ClientError> {
     };
     let subscriptions = &[
         ("myhelloiot/#", QoS::AtMostOnce),
-        ("zigbee2mqtt/0x000b57fffe4fc5ca", QoS::AtMostOnce),
+        ("zigbee2mqtt/0x000b57fffe323b4d", QoS::AtMostOnce), // presence sensor
+        ("zigbee2mqtt/0x000b57fffe4fc5ca", QoS::AtMostOnce), // remote control
         ("SYSMR/system_action", QoS::AtMostOnce),
-        ("ESPURNITA04/#", QoS::AtMostOnce),
+        ("ESPURNA04/#", QoS::AtMostOnce),
     ];
 
     mqtt::new_connection(connection_info, subscriptions).await
@@ -65,12 +66,31 @@ pub fn app_map_reducers() -> ReducersVec {
         //     "zigbee2mqtt/0x000b57fffe4fc5ca",
         //     "ESPURNA04/relay/0/set",
         // )),
-        Box::new(lights::toggle(
+        // Box::new(lights::toggle(
+        //     zigbee::actuator_toggle("zigbee2mqtt/0x000b57fffe4fc5ca"),
+        //     "ESPURNA04/relay/0",
+        //     "ESPURNA04/relay/0/set",
+        // )),
+        Box::new(lights::light_time(
             zigbee::actuator_toggle("zigbee2mqtt/0x000b57fffe4fc5ca"),
-            "ESPURNITA04/relay/0",
-            "ESPURNITA04/relay/0/set",
+            "ESPURNA04/relay/0",
+            "ESPURNA04/relay/0/set",
         )),
-        Box::new(lights::status("ESPURNITA04/relay/0")),
-        Box::new(devices::simulate_relay("ESPURNITA04/relay/0")),
+        Box::new(lights::light_on(
+            zigbee::actuator_brightness_up("zigbee2mqtt/0x000b57fffe4fc5ca"),
+            "ESPURNA04/relay/0",
+            "ESPURNA04/relay/0/set",
+        )),
+        Box::new(lights::light_off(
+            zigbee::actuator_brightness_down("zigbee2mqtt/0x000b57fffe4fc5ca"),
+            "ESPURNA04/relay/0",
+            "ESPURNA04/relay/0/set",
+        )),
+        Box::new(lights::light_time_reset(
+            "ESPURNA04/relay/0",
+            "ESPURNA04/relay/0/set",
+        )),
+        Box::new(lights::status("ESPURNA04/relay/0")),
+        // Box::new(devices::simulate_relay("ESPURNA04/relay/0")),
     ]
 }
