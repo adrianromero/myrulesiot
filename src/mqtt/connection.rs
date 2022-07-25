@@ -17,8 +17,6 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use std::fmt;
-
 use rumqttc::{
     self, AsyncClient, ClientError, ConnectionError, Event, EventLoop, MqttOptions, Packet, QoS,
 };

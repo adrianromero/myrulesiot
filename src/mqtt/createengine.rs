@@ -22,7 +22,8 @@ use std::collections::HashMap;
 use super::{ActionMessage, ConnectionMessage, ConnectionResult};
 use crate::engine::Engine;
 
-pub type ConnectionReducer = fn(ConnectionState, ActionMessage) -> ConnectionState;
+pub type ConnectionReducer =
+    Box<dyn Fn(ConnectionState, ActionMessage) -> ConnectionState + Send + 'static>;
 pub type ConnectionEngine = Engine<ActionMessage, ConnectionResult, ConnectionState>;
 
 #[derive(Debug)]
@@ -45,10 +46,10 @@ impl Default for ConnectionState {
 pub fn create_engine(reduce: ConnectionReducer) -> ConnectionEngine {
     Engine {
         reduce,
-        template: |state: &ConnectionState| ConnectionResult {
+        template: Box::new(|state: &ConnectionState| ConnectionResult {
             messages: state.messages.to_owned(),
             is_final: state.is_final,
-        },
-        is_final: |result: &ConnectionResult| result.is_final,
+        }),
+        is_final: Box::new(|result: &ConnectionResult| result.is_final),
     }
 }

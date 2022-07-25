@@ -17,16 +17,9 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use std::collections::HashMap;
-
-use rumqttc::QoS;
-
-use crate::mqtt::{ActionMessage, ConnectionMessage};
-
-mod savelist;
-pub use savelist::{save_list, save_value};
-
+pub mod forward;
 pub mod lights;
+pub mod savelist;
 pub mod zigbee;
 
 // pub fn light_actions(
@@ -144,20 +137,3 @@ pub mod zigbee;
 //         vec![]
 //     }
 // }
-
-pub fn forward_user_action_tick(
-    strtopic: &str,
-) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
-    let topic = strtopic.to_string();
-    move |_: &mut HashMap<String, Vec<u8>>, action: &ActionMessage| -> Vec<ConnectionMessage> {
-        if action.matches("SYSMR/user_action/tick") {
-            return vec![ConnectionMessage {
-                topic,
-                payload: action.payload.clone(),
-                qos: QoS::AtMostOnce,
-                retain: false,
-            }];
-        }
-        vec![]
-    }
-}

@@ -1,5 +1,5 @@
-//    MyRulesIoT is a rules engine for MQTT
-//    Copyright (C) 2021 Adrián Romero Corchado.
+//    MyRulesIoT is a rules engine library for MQTT
+//    Copyright (C) 2021-2022 Adrián Romero Corchado.
 //
 //    This file is part of MyRulesIoT.
 //
@@ -27,9 +27,9 @@ where
     R: Debug,
     S: Debug + Default,
 {
-    pub reduce: fn(S, A) -> S,
-    pub template: fn(&S) -> R,
-    pub is_final: fn(&R) -> bool,
+    pub reduce: Box<dyn Fn(S, A) -> S + Send + 'static>,
+    pub template: Box<dyn Fn(&S) -> R + Send + 'static>,
+    pub is_final: Box<dyn Fn(&R) -> bool + Send + 'static>,
 }
 
 pub async fn runtime_loop<A, R, S>(
