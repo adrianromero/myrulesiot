@@ -17,14 +17,13 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use bytes::Bytes;
 use rumqttc::Publish;
 use rumqttc::QoS;
 
 #[derive(Debug, Clone)]
 pub struct ActionMessage {
     pub topic: String,
-    pub payload: Bytes,
+    pub payload: Vec<u8>,
     pub timestamp: i64,
 }
 
@@ -32,7 +31,7 @@ impl ActionMessage {
     pub fn matches(&self, filter: &str) -> bool {
         rumqttc::matches(&self.topic, filter)
     }
-    pub fn matches_action(&self, filter: &str, payload: Bytes) -> bool {
+    pub fn matches_action(&self, filter: &str, payload: Vec<u8>) -> bool {
         rumqttc::matches(&self.topic, filter) && payload.eq(&self.payload)
     }
 }
@@ -41,7 +40,7 @@ impl From<Publish> for ActionMessage {
     fn from(p: Publish) -> ActionMessage {
         ActionMessage {
             topic: p.topic,
-            payload: p.payload,
+            payload: p.payload.into(),
             timestamp: chrono::Local::now().timestamp_millis(),
         }
     }
@@ -52,7 +51,7 @@ pub struct ConnectionMessage {
     pub qos: QoS,
     pub retain: bool,
     pub topic: String,
-    pub payload: Bytes,
+    pub payload: Vec<u8>,
 }
 
 #[derive(Debug, Clone)]

@@ -75,7 +75,7 @@ pub mod zigbee;
 //             let status = get_light_status(mapinfo, &topic);
 //             if value.eq("switch") {
 //                 let newvalue: String = if status.value == "1" { "0" } else { "1" }.into();
-//                 let newpayload: Bytes = newvalue.clone().into();
+//                 let newpayload: Vec<u8> = newvalue.clone().into();
 //                 mapinfo.insert(
 //                     topic.clone(),
 //                     bincode::serialize(&LightStatus {

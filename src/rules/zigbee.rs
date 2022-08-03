@@ -21,7 +21,7 @@ use crate::mqtt::ActionMessage;
 use serde_json::json;
 use serde_json::Value;
 
-pub fn actuator(actuatortopic: &str, action: &str) -> impl FnOnce(&ActionMessage) -> bool {
+pub fn actuator(actuatortopic: &str, action: &str) -> impl Fn(&ActionMessage) -> bool {
     let str_actuatortopic: String = actuatortopic.to_owned();
     let str_action: String = action.to_owned();
 
@@ -36,22 +36,22 @@ pub fn actuator(actuatortopic: &str, action: &str) -> impl FnOnce(&ActionMessage
     }
 }
 
-pub fn actuator_toggle(actuatortopic: &str) -> impl FnOnce(&ActionMessage) -> bool {
+pub fn actuator_toggle(actuatortopic: &str) -> impl Fn(&ActionMessage) -> bool {
     actuator(actuatortopic, "toggle")
 }
 
-pub fn actuator_brightness_up(actuatortopic: &str) -> impl FnOnce(&ActionMessage) -> bool {
+pub fn actuator_brightness_up(actuatortopic: &str) -> impl Fn(&ActionMessage) -> bool {
     actuator(actuatortopic, "brightness_up_click")
 }
 
-pub fn actuator_brightness_down(actuatortopic: &str) -> impl FnOnce(&ActionMessage) -> bool {
+pub fn actuator_brightness_down(actuatortopic: &str) -> impl Fn(&ActionMessage) -> bool {
     actuator(actuatortopic, "brightness_down_click")
 }
 
-pub fn actuator_arrow_right(actuatortopic: &str) -> impl FnOnce(&ActionMessage) -> bool {
+pub fn actuator_arrow_right(actuatortopic: &str) -> impl Fn(&ActionMessage) -> bool {
     actuator(actuatortopic, "arrow_right_click")
 }
 
-pub fn actuator_arrow_left(actuatortopic: &str) -> impl FnOnce(&ActionMessage) -> bool {
+pub fn actuator_arrow_left(actuatortopic: &str) -> impl Fn(&ActionMessage) -> bool {
     actuator(actuatortopic, "arrow_left_click")
 }

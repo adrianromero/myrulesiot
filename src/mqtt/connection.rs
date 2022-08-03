@@ -51,20 +51,21 @@ impl Default for ConnectionValues {
     }
 }
 
-pub type TopicInfo<'a> = (&'a str, QoS);
+pub type TopicInfo = (String, QoS);
 
-pub async fn new_connection<'a>(
+pub async fn new_connection(
     connection_info: ConnectionValues,
-    subscriptions: &[TopicInfo<'a>],
+    subscriptions: Vec<TopicInfo>,
 ) -> Result<(AsyncClient, EventLoop), ClientError> {
     log::info!("MQTT {:?}", &connection_info);
     log::info!("MQTT Subscriptions {:?}", &subscriptions);
 
     let mut mqttoptions = MqttOptions::new(
-        connection_info.id.clone(),
-        connection_info.host.clone(),
+        connection_info.id,
+        connection_info.host,
         connection_info.port,
     );
+
     mqttoptions
         .set_keep_alive(connection_info.keep_alive)
         .set_inflight(connection_info.inflight)
@@ -72,7 +73,7 @@ pub async fn new_connection<'a>(
 
     let (client, eventloop) = AsyncClient::new(mqttoptions, connection_info.cap);
 
-    for &(topic, qos) in subscriptions {
+    for (topic, qos) in subscriptions.into_iter() {
         client.subscribe(topic, qos).await?;
     }
 

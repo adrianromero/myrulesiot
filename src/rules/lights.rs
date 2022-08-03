@@ -20,7 +20,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use bytes::Bytes;
 use rumqttc::QoS;
 
 use crate::mqtt::{ActionMessage, ConnectionMessage};
@@ -67,7 +66,7 @@ pub fn toggle(
         if actionmatch(action) {
             let status = get_light_status(mapinfo, &topic);
             let newvalue: String = if status.value == "1" { "0" } else { "1" }.into();
-            let newpayload: Bytes = newvalue.clone().into();
+            let newpayload: Vec<u8> = newvalue.clone().into();
             insert_light_status(
                 mapinfo,
                 &topic,
@@ -89,7 +88,7 @@ pub fn toggle(
 }
 
 pub fn light_set(
-    actionmatch: impl FnOnce(&ActionMessage) -> bool,
+    actionmatch: impl Fn(&ActionMessage) -> bool,
     strtopic: &str,
     strtopicpub: &str,
     strvalue: &str,
@@ -101,7 +100,7 @@ pub fn light_set(
           action: &ActionMessage|
           -> Vec<ConnectionMessage> {
         if actionmatch(action) {
-            let newpayload: Bytes = newvalue.clone().into();
+            let newpayload: Vec<u8> = newvalue.clone().into();
             insert_light_status(
                 mapinfo,
                 &topic,
@@ -123,7 +122,7 @@ pub fn light_set(
 }
 
 pub fn light_on(
-    actionmatch: impl FnOnce(&ActionMessage) -> bool,
+    actionmatch: impl Fn(&ActionMessage) -> bool,
     strtopic: &str,
     strtopicpub: &str,
 ) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
@@ -131,7 +130,7 @@ pub fn light_on(
 }
 
 pub fn light_off(
-    actionmatch: impl FnOnce(&ActionMessage) -> bool,
+    actionmatch: impl Fn(&ActionMessage) -> bool,
     strtopic: &str,
     strtopicpub: &str,
 ) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
@@ -139,7 +138,7 @@ pub fn light_off(
 }
 
 pub fn light_time(
-    actionmatch: impl FnOnce(&ActionMessage) -> bool,
+    actionmatch: impl Fn(&ActionMessage) -> bool,
     strtopic: &str,
     strtopicpub: &str,
 ) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {

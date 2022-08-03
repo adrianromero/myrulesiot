@@ -19,7 +19,6 @@
 
 use std::collections::HashMap;
 
-use bytes::Bytes;
 use rumqttc::QoS;
 use serde_json::json;
 use serde_json::Value;
@@ -61,13 +60,13 @@ pub fn forward_action(
                     .get(&topic_value)
                     .map(|s| String::from_utf8_lossy(&s));
 
-                let newvalue: Bytes = match status {
-                    None => "1",
+                let newvalue: Vec<u8> = match status {
+                    None => vec![1],
                     Some(st) => {
                         if st == "1" {
-                            "0"
+                            vec![0]
                         } else {
-                            "1"
+                            vec![1]
                         }
                     }
                 }

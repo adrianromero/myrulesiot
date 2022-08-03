@@ -37,7 +37,7 @@ pub fn task_timer_loop(
             if timer_tx
                 .send(ActionMessage {
                     topic: "SYSMR/user_action/tick".to_string(),
-                    payload: localtime.to_rfc3339().into(),
+                    payload: localtime.to_rfc3339().into_bytes(),
                     timestamp: localtime.timestamp_millis(),
                 })
                 .await
