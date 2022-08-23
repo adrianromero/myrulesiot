@@ -25,8 +25,8 @@ use crate::mqtt::{ActionMessage, ConnectionMessage};
 
 pub fn simulate_relay(
     roottopic: &str,
-) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
-    let root_topic = roottopic.to_string();
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
+    let root_topic = String::from(roottopic);
     let key_topic = format!("simulate_relay_{}", roottopic);
     let action_topic = format!("{}/set", roottopic);
     move |mapinfo: &mut HashMap<String, Vec<u8>>,
@@ -53,9 +53,9 @@ pub fn simulate_relay(
                 ""
             }
             .as_bytes();
-            mapinfo.insert(key_topic, newvalue.to_vec());
+            mapinfo.insert(key_topic.clone(), newvalue.to_vec());
             return vec![ConnectionMessage {
-                topic: root_topic,
+                topic: root_topic.clone(),
                 payload: newvalue.into(),
                 qos: QoS::AtMostOnce,
                 retain: true,

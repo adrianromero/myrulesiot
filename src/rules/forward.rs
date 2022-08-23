@@ -27,12 +27,12 @@ use crate::mqtt::{ActionMessage, ConnectionMessage};
 
 pub fn forward_user_action_tick(
     strtopic: &str,
-) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
     let topic = strtopic.to_string();
     move |_: &mut HashMap<String, Vec<u8>>, action: &ActionMessage| -> Vec<ConnectionMessage> {
         if action.matches("SYSMR/user_action/tick") {
             return vec![ConnectionMessage {
-                topic,
+                topic: topic.clone(),
                 payload: action.payload.clone(),
                 qos: QoS::AtMostOnce,
                 retain: false,
@@ -45,9 +45,9 @@ pub fn forward_user_action_tick(
 pub fn forward_action(
     stractiontopic: &str,
     strtopic: &str,
-) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
-    let topic_value: String = strtopic.to_owned();
-    let action_topic_value: String = stractiontopic.to_owned();
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
+    let topic_value: String = String::from(strtopic);
+    let action_topic_value: String = String::from(stractiontopic);
 
     move |mapinfo: &mut HashMap<String, Vec<u8>>,
           action: &ActionMessage|
@@ -74,7 +74,7 @@ pub fn forward_action(
 
                 mapinfo.insert(topic_value.clone(), newvalue.to_vec());
                 return vec![ConnectionMessage {
-                    topic: topic_value,
+                    topic: topic_value.clone(),
                     payload: newvalue,
                     qos: QoS::AtMostOnce,
                     retain: false,

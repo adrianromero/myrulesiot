@@ -62,20 +62,18 @@ pub fn save_list(
     strtopic: &str,
     time_period: &chrono::Duration,
     count_values: usize,
-) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
     let topic = strtopic.to_string();
-    let mut topic_store = strtopic.to_string();
-    topic_store.push_str("/list");
-    let mut topic_list = strtopic.to_string();
-    topic_list.push_str("/list");
+    let topic_store = format!("{}/list", strtopic);
     let time_tick: i64 = time_period.num_milliseconds() / count_values as i64;
+
     move |mapinfo: &mut HashMap<String, Vec<u8>>,
           action: &ActionMessage|
           -> Vec<ConnectionMessage> {
         if action.matches(&topic) {
             let mut status = get_list_status(mapinfo, &topic_store);
             status.current = Some(action.payload.to_vec());
-            mapinfo.insert(topic_store, bincode::serialize(&status).unwrap());
+            mapinfo.insert(topic_store.clone(), bincode::serialize(&status).unwrap());
             return vec![];
         }
 
@@ -90,9 +88,9 @@ pub fn save_list(
                     if let Some(last) = status.values.last_mut() {
                         *last = status.current.clone();
                     }
-                    mapinfo.insert(topic_store, bincode::serialize(&status).unwrap());
+                    mapinfo.insert(topic_store.clone(), bincode::serialize(&status).unwrap());
                     return vec![ConnectionMessage {
-                        topic: topic_list,
+                        topic: topic_store.clone(),
                         payload: values_to_string(&status.values).into(),
                         qos: QoS::AtMostOnce,
                         retain: false,
@@ -109,9 +107,9 @@ pub fn save_list(
                                 *last = status.current.clone();
                             }
                         }
-                        mapinfo.insert(topic_store, bincode::serialize(&status).unwrap());
+                        mapinfo.insert(topic_store.clone(), bincode::serialize(&status).unwrap());
                         return vec![ConnectionMessage {
-                            topic: topic_list,
+                            topic: topic_store.clone(),
                             payload: values_to_string(&status.values).into(),
                             qos: QoS::AtMostOnce,
                             retain: false,
@@ -125,16 +123,15 @@ pub fn save_list(
 }
 
 pub fn save_value(
-    strtopic: &str,
-) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
-    let topic = strtopic.to_string();
-    let mut topic_store = strtopic.to_string();
-    topic_store.push_str("/store");
+    strtopic: impl Into<String>,
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
+    let topic: String = strtopic.into();
+    let topic_store = format!("{}/store", topic);
     move |mapinfo: &mut HashMap<String, Vec<u8>>,
           action: &ActionMessage|
           -> Vec<ConnectionMessage> {
         if action.matches(&topic) {
-            mapinfo.insert(topic_store, action.payload.to_vec());
+            mapinfo.insert(topic_store.clone(), action.payload.to_vec());
         }
         vec![]
     }

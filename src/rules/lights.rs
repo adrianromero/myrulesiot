@@ -54,12 +54,12 @@ fn insert_light_status(mapinfo: &mut HashMap<String, Vec<u8>>, topic: &str, stat
 }
 
 pub fn toggle(
-    actionmatch: impl FnOnce(&ActionMessage) -> bool,
-    strtopic: &str,
-    strtopicpub: &str,
-) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
-    let topic = strtopic.to_string();
-    let topicpub = strtopicpub.to_string();
+    actionmatch: impl Fn(&ActionMessage) -> bool,
+    strtopic: impl Into<String>,
+    strtopicpub: impl Into<String>,
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
+    let topic = strtopic.into();
+    let topicpub = strtopicpub.into();
     move |mapinfo: &mut HashMap<String, Vec<u8>>,
           action: &ActionMessage|
           -> Vec<ConnectionMessage> {
@@ -76,7 +76,7 @@ pub fn toggle(
                 },
             );
             return vec![ConnectionMessage {
-                topic: topicpub,
+                topic: topicpub.clone(),
                 payload: newpayload,
                 qos: QoS::AtMostOnce,
                 retain: false,
@@ -89,13 +89,13 @@ pub fn toggle(
 
 pub fn light_set(
     actionmatch: impl Fn(&ActionMessage) -> bool,
-    strtopic: &str,
-    strtopicpub: &str,
-    strvalue: &str,
-) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
-    let topic = strtopic.to_string();
-    let topicpub = strtopicpub.to_string();
-    let newvalue = strvalue.to_string();
+    strtopic: impl Into<String>,
+    strtopicpub: impl Into<String>,
+    strvalue: impl Into<String>,
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
+    let topic = strtopic.into();
+    let topicpub = strtopicpub.into();
+    let newvalue = strvalue.into();
     move |mapinfo: &mut HashMap<String, Vec<u8>>,
           action: &ActionMessage|
           -> Vec<ConnectionMessage> {
@@ -106,11 +106,11 @@ pub fn light_set(
                 &topic,
                 &LightStatus {
                     temp: None,
-                    value: newvalue,
+                    value: newvalue.clone(),
                 },
             );
             return vec![ConnectionMessage {
-                topic: topicpub,
+                topic: topicpub.clone(),
                 payload: newpayload,
                 qos: QoS::AtMostOnce,
                 retain: false,
@@ -123,27 +123,27 @@ pub fn light_set(
 
 pub fn light_on(
     actionmatch: impl Fn(&ActionMessage) -> bool,
-    strtopic: &str,
-    strtopicpub: &str,
-) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
+    strtopic: impl Into<String>,
+    strtopicpub: impl Into<String>,
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
     light_set(actionmatch, strtopic, strtopicpub, "1")
 }
 
 pub fn light_off(
     actionmatch: impl Fn(&ActionMessage) -> bool,
-    strtopic: &str,
-    strtopicpub: &str,
-) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
+    strtopic: impl Into<String>,
+    strtopicpub: impl Into<String>,
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
     light_set(actionmatch, strtopic, strtopicpub, "0")
 }
 
 pub fn light_time(
     actionmatch: impl Fn(&ActionMessage) -> bool,
-    strtopic: &str,
-    strtopicpub: &str,
-) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
-    let topic = strtopic.to_string();
-    let topicpub = strtopicpub.to_string();
+    strtopic: impl Into<String>,
+    strtopicpub: impl Into<String>,
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
+    let topic = strtopic.into();
+    let topicpub = strtopicpub.into();
     move |mapinfo: &mut HashMap<String, Vec<u8>>,
           action: &ActionMessage|
           -> Vec<ConnectionMessage> {
@@ -156,12 +156,12 @@ pub fn light_time(
                 &topic,
                 &LightStatus {
                     temp: Some(action.timestamp + millis),
-                    value: "1".to_string(),
+                    value: String::from("1"),
                 },
             );
             return vec![ConnectionMessage {
-                topic: topicpub,
-                payload: "1".into(),
+                topic: topicpub.clone(),
+                payload: vec![b'1'],
                 qos: QoS::AtMostOnce,
                 retain: false,
             }];
@@ -172,11 +172,11 @@ pub fn light_time(
 }
 
 pub fn light_time_reset(
-    strtopic: &str,
-    strtopicpub: &str,
-) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
-    let topic = strtopic.to_string();
-    let topicpub = strtopicpub.to_string();
+    strtopic: impl Into<String>,
+    strtopicpub: impl Into<String>,
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
+    let topic = strtopic.into();
+    let topicpub = strtopicpub.into();
     move |mapinfo: &mut HashMap<String, Vec<u8>>,
           action: &ActionMessage|
           -> Vec<ConnectionMessage> {
@@ -194,8 +194,8 @@ pub fn light_time_reset(
                         },
                     );
                     return vec![ConnectionMessage {
-                        topic: topicpub,
-                        payload: "0".into(),
+                        topic: topicpub.clone(),
+                        payload: vec![b'0'],
                         qos: QoS::AtMostOnce,
                         retain: false,
                     }];
@@ -208,9 +208,9 @@ pub fn light_time_reset(
 }
 
 pub fn status(
-    strtopic: &str,
-) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
-    let topic = strtopic.to_string();
+    strtopic: impl Into<String>,
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
+    let topic = strtopic.into();
     move |mapinfo: &mut HashMap<String, Vec<u8>>,
           action: &ActionMessage|
           -> Vec<ConnectionMessage> {
