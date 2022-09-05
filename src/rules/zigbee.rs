@@ -16,10 +16,13 @@
 //    You should have received a copy of the GNU General Public License
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
+use std::collections::HashMap;
 
-use crate::mqtt::ActionMessage;
+use rumqttc::QoS;
 use serde_json::json;
 use serde_json::Value;
+
+use crate::mqtt::{ActionMessage, ConnectionMessage};
 
 pub fn actuator(actuatortopic: &str, action: &str) -> impl Fn(&ActionMessage) -> bool {
     let str_actuatortopic: String = actuatortopic.to_owned();
@@ -54,4 +57,26 @@ pub fn actuator_arrow_right(actuatortopic: &str) -> impl Fn(&ActionMessage) -> b
 
 pub fn actuator_arrow_left(actuatortopic: &str) -> impl Fn(&ActionMessage) -> bool {
     actuator(actuatortopic, "arrow_left_click")
+}
+
+pub fn light_toggle(
+    actionmatch: impl Fn(&ActionMessage) -> bool,
+    strtopic: impl Into<String>,
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
+    let topic = strtopic.into();
+
+    move |_mapinfo: &mut HashMap<String, Vec<u8>>,
+          action: &ActionMessage|
+          -> Vec<ConnectionMessage> {
+        if actionmatch(action) {
+            return vec![ConnectionMessage {
+                topic: format!("{}/set", &topic),
+                payload: "{\"state\":\"TOGGLE\"}".into(),
+                qos: QoS::AtMostOnce,
+                retain: false,
+            }];
+        }
+
+        vec![]
+    }
 }
