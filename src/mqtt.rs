@@ -24,6 +24,5 @@ pub use connection::{new_connection, task_publication_loop, task_subscription_lo
 mod actions;
 pub use actions::{ActionMessage, ConnectionMessage, ConnectionResult};
 
-mod createengine;
-pub use createengine::create_engine;
-pub use createengine::{ConnectionEngine, ConnectionReducer, ConnectionState};
+mod connectionengine;
+pub use connectionengine::{ConnectionEngine, ConnectionReducer, ConnectionState};

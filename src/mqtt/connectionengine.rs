@@ -24,7 +24,30 @@ use crate::engine::Engine;
 
 pub type ConnectionReducer =
     Box<dyn Fn(ConnectionState, ActionMessage) -> ConnectionState + Send + 'static>;
-pub type ConnectionEngine = Engine<ActionMessage, ConnectionResult, ConnectionState>;
+
+pub struct ConnectionEngine(ConnectionReducer);
+
+impl ConnectionEngine {
+    pub fn new(reduce: ConnectionReducer) -> Self {
+        Self(reduce)
+    }
+}
+
+impl Engine<ActionMessage, ConnectionResult, ConnectionState> for ConnectionEngine {
+    fn reduce(&self, state: ConnectionState, action: ActionMessage) -> ConnectionState {
+        self.0(state, action)
+    }
+    fn template(&self, state: &ConnectionState) -> ConnectionResult {
+        ConnectionResult {
+            messages: state.messages.to_owned(),
+            is_final: state.is_final,
+        }
+    }
+    fn is_final(&self, result: &ConnectionResult) -> bool {
+        result.is_final
+    }
+}
+// pub type ConnectionEngine = Engine<ActionMessage, ConnectionResult, ConnectionState>;
 
 #[derive(Debug)]
 pub struct ConnectionState {
@@ -43,13 +66,13 @@ impl Default for ConnectionState {
     }
 }
 
-pub fn create_engine(reduce: ConnectionReducer) -> ConnectionEngine {
-    Engine {
-        reduce,
-        template: Box::new(|state: &ConnectionState| ConnectionResult {
-            messages: state.messages.to_owned(),
-            is_final: state.is_final,
-        }),
-        is_final: Box::new(|result: &ConnectionResult| result.is_final),
-    }
-}
+// pub fn create_engine(reduce: ConnectionReducer) -> ConnectionEngine {
+//     Engine {
+//         reduce,
+//         template: Box::new(|state: &ConnectionState| ConnectionResult {
+//             messages: state.messages.to_owned(),
+//             is_final: state.is_final,
+//         }),
+//         is_final: Box::new(|result: &ConnectionResult| result.is_final),
+//     }
+// }

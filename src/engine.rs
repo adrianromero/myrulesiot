@@ -21,41 +21,42 @@ use std::fmt::Debug;
 use tokio::sync::mpsc;
 use tokio::task;
 
-pub struct Engine<A, R, S>
+pub trait Engine<A, R, S>
 where
     A: Debug,
     R: Debug,
     S: Debug + Default,
 {
-    pub reduce: Box<dyn Fn(S, A) -> S + Send + 'static>,
-    pub template: Box<dyn Fn(&S) -> R + Send + 'static>,
-    pub is_final: Box<dyn Fn(&R) -> bool + Send + 'static>,
+    fn reduce(&self, state: S, action: A) -> S;
+    fn template(&self, state: &S) -> R;
+    fn is_final(&self, result: &R) -> bool;
 }
 
-pub async fn runtime_loop<A, R, S>(
+pub async fn runtime_loop<A, R, S, E>(
     tx: mpsc::Sender<R>,
     mut rx: mpsc::Receiver<A>,
-    engine: Engine<A, R, S>,
+    engine: E,
 ) -> Result<(), mpsc::error::SendError<R>>
 where
     A: Debug,
     R: Debug,
     S: Debug + Default,
+    E: Engine<A, R, S>,
 {
     let mut state = Default::default();
 
     while let Some(action) = rx.recv().await {
         log::debug!("Persist action {:?}.", &action);
 
-        state = (engine.reduce)(state, action);
+        state = engine.reduce(state, action);
 
         log::debug!("Persist state {:?}.", &state);
 
-        let result = (engine.template)(&state);
+        let result = engine.template(&state);
 
         log::debug!("Persist result {:?}.", &result);
 
-        let is_final = (engine.is_final)(&result);
+        let is_final = engine.is_final(&result);
 
         tx.send(result).await?;
 
@@ -66,15 +67,16 @@ where
     Ok(())
 }
 
-pub fn task_runtime_loop<A, R, S>(
+pub fn task_runtime_loop<A, R, S, E>(
     tx: mpsc::Sender<R>,
     rx: mpsc::Receiver<A>,
-    engine: Engine<A, R, S>,
+    engine: E,
 ) -> task::JoinHandle<()>
 where
     A: Debug + Send + 'static,
     R: Debug + Send + 'static,
     S: Debug + Default + Send + 'static,
+    E: Engine<A, R, S> + Send + 'static,
 {
     task::spawn(async move {
         log::info!("Started runtime engine...");
