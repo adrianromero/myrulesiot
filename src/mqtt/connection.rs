@@ -23,6 +23,7 @@ use rumqttc::{
 use std::error::Error;
 use tokio::sync::mpsc;
 use tokio::task;
+use tokio::time;
 
 use super::{ActionMessage, ConnectionResult};
 
@@ -156,5 +157,33 @@ pub fn task_publication_loop(
             }
         }
         log::debug!("Started MQTT publication...");
+    })
+}
+
+pub fn task_timer_loop(
+    tx: &mpsc::Sender<ActionMessage>,
+    duration: &chrono::Duration,
+) -> task::JoinHandle<()> {
+    let timer_tx = tx.clone();
+    let time_duration = time::Duration::from_millis(duration.num_milliseconds() as u64);
+    task::spawn(async move {
+        log::debug!("Started user action tick subscription...");
+        loop {
+            time::sleep(time_duration).await;
+            let localtime = chrono::Local::now();
+            if timer_tx
+                .send(ActionMessage {
+                    topic: "SYSMR/user_action/tick".to_string(),
+                    payload: localtime.to_rfc3339().into_bytes(),
+                    timestamp: localtime.timestamp_millis(),
+                })
+                .await
+                .is_err()
+            {
+                // If cannot send because channel closed, just ignore and exit.
+                break;
+            }
+        }
+        log::debug!("Exited user action tick subscription...");
     })
 }

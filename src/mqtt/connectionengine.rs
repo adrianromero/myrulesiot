@@ -20,20 +20,19 @@
 use std::collections::HashMap;
 
 use super::{ActionMessage, ConnectionMessage, ConnectionResult};
-use crate::engine::Engine;
+use crate::runtime::Engine;
 
-pub type ConnectionReducer =
-    Box<dyn Fn(ConnectionState, ActionMessage) -> ConnectionState + Send + 'static>;
+pub struct ConnectionEngine<T: Fn(ConnectionState, ActionMessage) -> ConnectionState>(T);
 
-pub struct ConnectionEngine(ConnectionReducer);
-
-impl ConnectionEngine {
-    pub fn new(reduce: ConnectionReducer) -> Self {
+impl<T: Fn(ConnectionState, ActionMessage) -> ConnectionState> ConnectionEngine<T> {
+    pub fn new(reduce: T) -> Self {
         Self(reduce)
     }
 }
 
-impl Engine<ActionMessage, ConnectionResult, ConnectionState> for ConnectionEngine {
+impl<T: Fn(ConnectionState, ActionMessage) -> ConnectionState>
+    Engine<ActionMessage, ConnectionResult, ConnectionState> for ConnectionEngine<T>
+{
     fn reduce(&self, state: ConnectionState, action: ActionMessage) -> ConnectionState {
         self.0(state, action)
     }
@@ -47,7 +46,6 @@ impl Engine<ActionMessage, ConnectionResult, ConnectionState> for ConnectionEngi
         result.is_final
     }
 }
-// pub type ConnectionEngine = Engine<ActionMessage, ConnectionResult, ConnectionState>;
 
 #[derive(Debug)]
 pub struct ConnectionState {
@@ -66,13 +64,26 @@ impl Default for ConnectionState {
     }
 }
 
-// pub fn create_engine(reduce: ConnectionReducer) -> ConnectionEngine {
-//     Engine {
-//         reduce,
-//         template: Box::new(|state: &ConnectionState| ConnectionResult {
-//             messages: state.messages.to_owned(),
-//             is_final: state.is_final,
-//         }),
-//         is_final: Box::new(|result: &ConnectionResult| result.is_final),
-//     }
-// }
+pub type FnMQTTReducer =
+    Box<dyn Fn(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> + Send>;
+
+pub fn create_reducer(
+    reducers: Vec<FnMQTTReducer>,
+) -> impl Fn(ConnectionState, ActionMessage) -> ConnectionState {
+    move |state: ConnectionState, action: ActionMessage| {
+        let mut messages = Vec::<ConnectionMessage>::new();
+        let mut newmap = state.info.clone();
+
+        for f in &reducers {
+            messages.append(&mut f(&mut newmap, &action));
+        }
+
+        let is_final = action.matches_action("SYSMR/system_action", "exit".into());
+
+        ConnectionState {
+            info: newmap,
+            messages,
+            is_final,
+        }
+    }
+}

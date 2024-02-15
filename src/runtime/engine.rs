@@ -1,5 +1,5 @@
 //    MyRulesIoT is a rules engine library for MQTT
-//    Copyright (C) 2021-2022 Adrián Romero Corchado.
+//    Copyright (C) 2021-2024 Adrián Romero Corchado.
 //
 //    This file is part of MyRulesIoT.
 //
@@ -68,7 +68,7 @@ where
 }
 
 pub fn task_runtime_loop<A, R, S, E>(
-    tx: mpsc::Sender<R>,
+    tx: &mpsc::Sender<R>,
     rx: mpsc::Receiver<A>,
     engine: E,
 ) -> task::JoinHandle<()>
@@ -78,9 +78,10 @@ where
     S: Debug + Default + Send + 'static,
     E: Engine<A, R, S> + Send + 'static,
 {
+    let runtime_tx = tx.clone();
     task::spawn(async move {
         log::info!("Started runtime engine...");
-        match runtime_loop(tx, rx, engine).await {
+        match runtime_loop(runtime_tx, rx, engine).await {
             Result::Ok(_) => {}
             Result::Err(error) => {
                 log::warn!("Runtime error {}", error);
