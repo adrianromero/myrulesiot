@@ -1,5 +1,5 @@
 //    MyRulesIoT is a rules engine for MQTT
-//    Copyright (C) 2021 Adrián Romero Corchado.
+//    Copyright (C) 2021-2024 Adrián Romero Corchado.
 //
 //    This file is part of MyRulesIoT.
 //
@@ -22,7 +22,7 @@ use std::collections::HashMap;
 
 use rumqttc::QoS;
 
-use crate::mqtt::{ActionMessage, ConnectionMessage};
+use crate::mqtt::{ConnectionAction, ConnectionMessage};
 
 #[derive(Serialize, Deserialize)]
 struct LightStatus {
@@ -54,14 +54,14 @@ fn insert_light_status(mapinfo: &mut HashMap<String, Vec<u8>>, topic: &str, stat
 }
 
 pub fn toggle(
-    actionmatch: impl Fn(&ActionMessage) -> bool,
+    actionmatch: impl Fn(&ConnectionAction) -> bool,
     strtopic: impl Into<String>,
     strtopicpub: impl Into<String>,
-) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ConnectionAction) -> Vec<ConnectionMessage> {
     let topic = strtopic.into();
     let topicpub = strtopicpub.into();
     move |mapinfo: &mut HashMap<String, Vec<u8>>,
-          action: &ActionMessage|
+          action: &ConnectionAction|
           -> Vec<ConnectionMessage> {
         if actionmatch(action) {
             let status = get_light_status(mapinfo, &topic);
@@ -88,16 +88,16 @@ pub fn toggle(
 }
 
 pub fn light_set(
-    actionmatch: impl Fn(&ActionMessage) -> bool,
+    actionmatch: impl Fn(&ConnectionAction) -> bool,
     strtopic: impl Into<String>,
     strtopicpub: impl Into<String>,
     strvalue: impl Into<String>,
-) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ConnectionAction) -> Vec<ConnectionMessage> {
     let topic = strtopic.into();
     let topicpub = strtopicpub.into();
     let newvalue = strvalue.into();
     move |mapinfo: &mut HashMap<String, Vec<u8>>,
-          action: &ActionMessage|
+          action: &ConnectionAction|
           -> Vec<ConnectionMessage> {
         if actionmatch(action) {
             let newpayload: Vec<u8> = newvalue.clone().into();
@@ -122,30 +122,30 @@ pub fn light_set(
 }
 
 pub fn light_on(
-    actionmatch: impl Fn(&ActionMessage) -> bool,
+    actionmatch: impl Fn(&ConnectionAction) -> bool,
     strtopic: impl Into<String>,
     strtopicpub: impl Into<String>,
-) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ConnectionAction) -> Vec<ConnectionMessage> {
     light_set(actionmatch, strtopic, strtopicpub, "1")
 }
 
 pub fn light_off(
-    actionmatch: impl Fn(&ActionMessage) -> bool,
+    actionmatch: impl Fn(&ConnectionAction) -> bool,
     strtopic: impl Into<String>,
     strtopicpub: impl Into<String>,
-) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ConnectionAction) -> Vec<ConnectionMessage> {
     light_set(actionmatch, strtopic, strtopicpub, "0")
 }
 
 pub fn light_time(
-    actionmatch: impl Fn(&ActionMessage) -> bool,
+    actionmatch: impl Fn(&ConnectionAction) -> bool,
     strtopic: impl Into<String>,
     strtopicpub: impl Into<String>,
-) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ConnectionAction) -> Vec<ConnectionMessage> {
     let topic = strtopic.into();
     let topicpub = strtopicpub.into();
     move |mapinfo: &mut HashMap<String, Vec<u8>>,
-          action: &ActionMessage|
+          action: &ConnectionAction|
           -> Vec<ConnectionMessage> {
         if actionmatch(action) {
             // let smillis = String::from_utf8_lossy(&action.payload);
@@ -174,11 +174,11 @@ pub fn light_time(
 pub fn light_time_reset(
     strtopic: impl Into<String>,
     strtopicpub: impl Into<String>,
-) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ConnectionAction) -> Vec<ConnectionMessage> {
     let topic = strtopic.into();
     let topicpub = strtopicpub.into();
     move |mapinfo: &mut HashMap<String, Vec<u8>>,
-          action: &ActionMessage|
+          action: &ConnectionAction|
           -> Vec<ConnectionMessage> {
         if action.matches("SYSMR/user_action/tick") {
             let status = get_light_status(mapinfo, &topic);
@@ -209,10 +209,10 @@ pub fn light_time_reset(
 
 pub fn status(
     strtopic: impl Into<String>,
-) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ConnectionAction) -> Vec<ConnectionMessage> {
     let topic = strtopic.into();
     move |mapinfo: &mut HashMap<String, Vec<u8>>,
-          action: &ActionMessage|
+          action: &ConnectionAction|
           -> Vec<ConnectionMessage> {
         if action.matches(&topic) {
             let status = get_light_status(mapinfo, &topic);

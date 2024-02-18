@@ -1,5 +1,5 @@
 //    MyRulesIoT is a rules engine for MQTT
-//    Copyright (C) 2021 Adrián Romero Corchado.
+//    Copyright (C) 2021-2024 Adrián Romero Corchado.
 //
 //    This file is part of MyRulesIoT.
 //
@@ -19,33 +19,8 @@
 
 use std::collections::HashMap;
 
-use super::{ActionMessage, ConnectionMessage, ConnectionResult};
 use crate::runtime::Engine;
-
-pub struct ConnectionEngine<T: Fn(ConnectionState, ActionMessage) -> ConnectionState>(T);
-
-impl<T: Fn(ConnectionState, ActionMessage) -> ConnectionState> ConnectionEngine<T> {
-    pub fn new(reduce: T) -> Self {
-        Self(reduce)
-    }
-}
-
-impl<T: Fn(ConnectionState, ActionMessage) -> ConnectionState>
-    Engine<ActionMessage, ConnectionResult, ConnectionState> for ConnectionEngine<T>
-{
-    fn reduce(&self, state: ConnectionState, action: ActionMessage) -> ConnectionState {
-        self.0(state, action)
-    }
-    fn template(&self, state: &ConnectionState) -> ConnectionResult {
-        ConnectionResult {
-            messages: state.messages.to_owned(),
-            is_final: state.is_final,
-        }
-    }
-    fn is_final(&self, result: &ConnectionResult) -> bool {
-        result.is_final
-    }
-}
+use rumqttc::{Publish, QoS};
 
 #[derive(Debug)]
 pub struct ConnectionState {
@@ -64,13 +39,78 @@ impl Default for ConnectionState {
     }
 }
 
+#[derive(Debug)]
+pub struct ConnectionAction {
+    pub topic: String,
+    pub payload: Vec<u8>,
+    pub timestamp: i64,
+}
+
+impl ConnectionAction {
+    pub fn matches(&self, filter: &str) -> bool {
+        rumqttc::matches(&self.topic, filter)
+    }
+    pub fn matches_action(&self, filter: &str, payload: Vec<u8>) -> bool {
+        rumqttc::matches(&self.topic, filter) && payload.eq(&self.payload)
+    }
+}
+
+impl From<Publish> for ConnectionAction {
+    fn from(p: Publish) -> ConnectionAction {
+        ConnectionAction {
+            topic: p.topic,
+            payload: p.payload.into(),
+            timestamp: chrono::Local::now().timestamp_millis(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ConnectionResult {
+    pub messages: Vec<ConnectionMessage>,
+    pub is_final: bool,
+}
+
+pub struct ConnectionEngine<T: Fn(ConnectionState, ConnectionAction) -> ConnectionState>(T);
+
+impl<T: Fn(ConnectionState, ConnectionAction) -> ConnectionState> ConnectionEngine<T> {
+    pub fn new(reduce: T) -> Self {
+        Self(reduce)
+    }
+}
+
+impl<T: Fn(ConnectionState, ConnectionAction) -> ConnectionState>
+    Engine<ConnectionAction, ConnectionResult, ConnectionState> for ConnectionEngine<T>
+{
+    fn reduce(&self, state: ConnectionState, action: ConnectionAction) -> ConnectionState {
+        self.0(state, action)
+    }
+    fn template(&self, state: &ConnectionState) -> ConnectionResult {
+        ConnectionResult {
+            messages: state.messages.to_owned(),
+            is_final: state.is_final,
+        }
+    }
+    fn is_final(&self, result: &ConnectionResult) -> bool {
+        result.is_final
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ConnectionMessage {
+    pub qos: QoS,
+    pub retain: bool,
+    pub topic: String,
+    pub payload: Vec<u8>,
+}
+
 pub type FnMQTTReducer =
-    Box<dyn Fn(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> + Send>;
+    Box<dyn Fn(&mut HashMap<String, Vec<u8>>, &ConnectionAction) -> Vec<ConnectionMessage> + Send>;
 
 pub fn create_reducer(
     reducers: Vec<FnMQTTReducer>,
-) -> impl Fn(ConnectionState, ActionMessage) -> ConnectionState {
-    move |state: ConnectionState, action: ActionMessage| {
+) -> impl Fn(ConnectionState, ConnectionAction) -> ConnectionState {
+    move |state: ConnectionState, action: ConnectionAction| {
         let mut messages = Vec::<ConnectionMessage>::new();
         let mut newmap = state.info.clone();
 

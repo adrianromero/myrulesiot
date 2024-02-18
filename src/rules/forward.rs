@@ -1,5 +1,5 @@
 //    MyRulesIoT is a rules engine for MQTT
-//    Copyright (C) 2021 Adrián Romero Corchado.
+//    Copyright (C) 2021-2024 Adrián Romero Corchado.
 //
 //    This file is part of MyRulesIoT.
 //
@@ -23,13 +23,13 @@ use rumqttc::QoS;
 use serde_json::json;
 use serde_json::Value;
 
-use crate::mqtt::{ActionMessage, ConnectionMessage};
+use crate::mqtt::{ConnectionAction, ConnectionMessage};
 
 pub fn forward_user_action_tick(
     strtopic: &str,
-) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ConnectionAction) -> Vec<ConnectionMessage> {
     let topic = strtopic.to_string();
-    move |_: &mut HashMap<String, Vec<u8>>, action: &ActionMessage| -> Vec<ConnectionMessage> {
+    move |_: &mut HashMap<String, Vec<u8>>, action: &ConnectionAction| -> Vec<ConnectionMessage> {
         if action.matches("SYSMR/user_action/tick") {
             return vec![ConnectionMessage {
                 topic: topic.clone(),
@@ -45,12 +45,12 @@ pub fn forward_user_action_tick(
 pub fn forward_action(
     stractiontopic: &str,
     strtopic: &str,
-) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ConnectionAction) -> Vec<ConnectionMessage> {
     let topic_value: String = String::from(strtopic);
     let action_topic_value: String = String::from(stractiontopic);
 
     move |mapinfo: &mut HashMap<String, Vec<u8>>,
-          action: &ActionMessage|
+          action: &ConnectionAction|
           -> Vec<ConnectionMessage> {
         if action.matches(&action_topic_value) {
             let json_payload: Value =

@@ -1,5 +1,5 @@
 //    MyRulesIoT is a rules engine for MQTT
-//    Copyright (C) 2021 Adrián Romero Corchado.
+//    Copyright (C) 2021-2024 Adrián Romero Corchado.
 //
 //    This file is part of MyRulesIoT.
 //
@@ -22,13 +22,13 @@ use rumqttc::QoS;
 use serde_json::json;
 use serde_json::Value;
 
-use crate::mqtt::{ActionMessage, ConnectionMessage};
+use crate::mqtt::{ConnectionAction, ConnectionMessage};
 
-pub fn actuator(actuatortopic: &str, action: &str) -> impl Fn(&ActionMessage) -> bool {
+pub fn actuator(actuatortopic: &str, action: &str) -> impl Fn(&ConnectionAction) -> bool {
     let str_actuatortopic: String = actuatortopic.to_owned();
     let str_action: String = action.to_owned();
 
-    move |action: &ActionMessage| -> bool {
+    move |action: &ConnectionAction| -> bool {
         if action.matches(&str_actuatortopic) {
             let json_payload: Value =
                 serde_json::from_slice(&action.payload).unwrap_or(json!(null));
@@ -39,34 +39,34 @@ pub fn actuator(actuatortopic: &str, action: &str) -> impl Fn(&ActionMessage) ->
     }
 }
 
-pub fn actuator_toggle(actuatortopic: &str) -> impl Fn(&ActionMessage) -> bool {
+pub fn actuator_toggle(actuatortopic: &str) -> impl Fn(&ConnectionAction) -> bool {
     actuator(actuatortopic, "toggle")
 }
 
-pub fn actuator_brightness_up(actuatortopic: &str) -> impl Fn(&ActionMessage) -> bool {
+pub fn actuator_brightness_up(actuatortopic: &str) -> impl Fn(&ConnectionAction) -> bool {
     actuator(actuatortopic, "brightness_up_click")
 }
 
-pub fn actuator_brightness_down(actuatortopic: &str) -> impl Fn(&ActionMessage) -> bool {
+pub fn actuator_brightness_down(actuatortopic: &str) -> impl Fn(&ConnectionAction) -> bool {
     actuator(actuatortopic, "brightness_down_click")
 }
 
-pub fn actuator_arrow_right(actuatortopic: &str) -> impl Fn(&ActionMessage) -> bool {
+pub fn actuator_arrow_right(actuatortopic: &str) -> impl Fn(&ConnectionAction) -> bool {
     actuator(actuatortopic, "arrow_right_click")
 }
 
-pub fn actuator_arrow_left(actuatortopic: &str) -> impl Fn(&ActionMessage) -> bool {
+pub fn actuator_arrow_left(actuatortopic: &str) -> impl Fn(&ConnectionAction) -> bool {
     actuator(actuatortopic, "arrow_left_click")
 }
 
 pub fn light_toggle(
-    actionmatch: impl Fn(&ActionMessage) -> bool,
+    actionmatch: impl Fn(&ConnectionAction) -> bool,
     strtopic: impl Into<String>,
-) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ConnectionAction) -> Vec<ConnectionMessage> {
     let topic = strtopic.into();
 
     move |_mapinfo: &mut HashMap<String, Vec<u8>>,
-          action: &ActionMessage|
+          action: &ConnectionAction|
           -> Vec<ConnectionMessage> {
         if actionmatch(action) {
             return vec![ConnectionMessage {

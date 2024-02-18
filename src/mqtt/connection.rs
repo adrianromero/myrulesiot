@@ -1,5 +1,5 @@
 //    MyRulesIoT is a rules engine for MQTT
-//    Copyright (C) 2021 Adrián Romero Corchado.
+//    Copyright (C) 2021-2024 Adrián Romero Corchado.
 //
 //    This file is part of MyRulesIoT.
 //
@@ -25,7 +25,7 @@ use tokio::sync::mpsc;
 use tokio::task;
 use tokio::time;
 
-use super::{ActionMessage, ConnectionResult};
+use super::{ConnectionAction, ConnectionResult};
 
 #[derive(Debug)]
 pub struct ConnectionValues {
@@ -82,7 +82,7 @@ pub async fn new_connection(
 }
 
 async fn subscription_loop(
-    tx: mpsc::Sender<ActionMessage>,
+    tx: mpsc::Sender<ConnectionAction>,
     mut eventloop: EventLoop,
 ) -> Result<(), Box<dyn Error>> {
     loop {
@@ -90,7 +90,7 @@ async fn subscription_loop(
         log::debug!("EventLoop Event -> {:?}", event);
         match event {
             Result::Ok(Event::Incoming(Packet::Publish(publish))) => {
-                tx.send(ActionMessage::from(publish)).await?;
+                tx.send(ConnectionAction::from(publish)).await?;
             }
             Result::Ok(_) => {}
             Result::Err(ConnectionError::Cancel) => {
@@ -102,7 +102,7 @@ async fn subscription_loop(
 }
 
 pub fn task_subscription_loop(
-    tx: &mpsc::Sender<ActionMessage>,
+    tx: &mpsc::Sender<ConnectionAction>,
     eventloop: EventLoop,
 ) -> task::JoinHandle<()> {
     let subs_tx = tx.clone();
@@ -161,7 +161,7 @@ pub fn task_publication_loop(
 }
 
 pub fn task_timer_loop(
-    tx: &mpsc::Sender<ActionMessage>,
+    tx: &mpsc::Sender<ConnectionAction>,
     duration: &chrono::Duration,
 ) -> task::JoinHandle<()> {
     let timer_tx = tx.clone();
@@ -172,7 +172,7 @@ pub fn task_timer_loop(
             time::sleep(time_duration).await;
             let localtime = chrono::Local::now();
             if timer_tx
-                .send(ActionMessage {
+                .send(ConnectionAction {
                     topic: "SYSMR/user_action/tick".to_string(),
                     payload: localtime.to_rfc3339().into_bytes(),
                     timestamp: localtime.timestamp_millis(),

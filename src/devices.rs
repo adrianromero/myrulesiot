@@ -1,5 +1,5 @@
 //    MyRulesIoT is a rules engine for MQTT
-//    Copyright (C) 2021 Adrián Romero Corchado.
+//    Copyright (C) 2021-2024 Adrián Romero Corchado.
 //
 //    This file is part of MyRulesIoT.
 //
@@ -21,16 +21,16 @@ use std::collections::HashMap;
 
 use rumqttc::QoS;
 
-use crate::mqtt::{ActionMessage, ConnectionMessage};
+use crate::mqtt::{ConnectionAction, ConnectionMessage};
 
 pub fn simulate_relay(
     roottopic: &str,
-) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ConnectionAction) -> Vec<ConnectionMessage> {
     let root_topic = String::from(roottopic);
     let key_topic = format!("simulate_relay_{}", roottopic);
     let action_topic = format!("{}/set", roottopic);
     move |mapinfo: &mut HashMap<String, Vec<u8>>,
-          action: &ActionMessage|
+          action: &ConnectionAction|
           -> Vec<ConnectionMessage> {
         if action.matches(&action_topic) {
             let value = String::from_utf8_lossy(&action.payload);

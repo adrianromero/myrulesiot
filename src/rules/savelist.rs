@@ -1,5 +1,5 @@
 //    MyRulesIoT is a rules engine for MQTT
-//    Copyright (C) 2021 Adrián Romero Corchado.
+//    Copyright (C) 2021-2024 Adrián Romero Corchado.
 //
 //    This file is part of MyRulesIoT.
 //
@@ -21,7 +21,7 @@ use rumqttc::QoS;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::mqtt::{ActionMessage, ConnectionMessage};
+use crate::mqtt::{ConnectionAction, ConnectionMessage};
 
 #[derive(Serialize, Deserialize)]
 struct ListStatus {
@@ -62,13 +62,13 @@ pub fn save_list(
     strtopic: &str,
     time_period: &chrono::Duration,
     count_values: usize,
-) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ConnectionAction) -> Vec<ConnectionMessage> {
     let topic = strtopic.to_string();
     let topic_store = format!("{}/list", strtopic);
     let time_tick: i64 = time_period.num_milliseconds() / count_values as i64;
 
     move |mapinfo: &mut HashMap<String, Vec<u8>>,
-          action: &ActionMessage|
+          action: &ConnectionAction|
           -> Vec<ConnectionMessage> {
         if action.matches(&topic) {
             let mut status = get_list_status(mapinfo, &topic_store);
@@ -124,11 +124,11 @@ pub fn save_list(
 
 pub fn save_value(
     strtopic: impl Into<String>,
-) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ConnectionAction) -> Vec<ConnectionMessage> {
     let topic: String = strtopic.into();
     let topic_store = format!("{}/store", topic);
     move |mapinfo: &mut HashMap<String, Vec<u8>>,
-          action: &ActionMessage|
+          action: &ConnectionAction|
           -> Vec<ConnectionMessage> {
         if action.matches(&topic) {
             mapinfo.insert(topic_store.clone(), action.payload.to_vec());

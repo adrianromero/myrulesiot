@@ -1,5 +1,5 @@
 //    MyRulesIoT is a rules engine for MQTT
-//    Copyright (C) 2021 Adrián Romero Corchado.
+//    Copyright (C) 2021-2024 Adrián Romero Corchado.
 //
 //    This file is part of MyRulesIoT.
 //
@@ -23,9 +23,9 @@ pub use connection::{
     new_connection, task_publication_loop, task_subscription_loop, task_timer_loop,
 };
 
-mod actions;
-pub use actions::{ActionMessage, ConnectionMessage, ConnectionResult};
-
 mod connectionengine;
 pub use connectionengine::create_reducer;
-pub use connectionengine::{ConnectionEngine, ConnectionState, FnMQTTReducer};
+pub use connectionengine::{
+    ConnectionAction, ConnectionEngine, ConnectionMessage, ConnectionResult, ConnectionState,
+    FnMQTTReducer,
+};
