@@ -31,5 +31,4 @@ pub use connectionengine::create_reducer;
 pub use connectionengine::{ConnectionEngine, FnMQTTReducer};
 
 mod masterengine;
-pub use masterengine::create_engine_reducer;
 pub use masterengine::{EngineFunction, EngineState, MasterEngine, ReducerFunction};

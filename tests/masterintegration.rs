@@ -20,8 +20,7 @@
 use std::collections::HashMap;
 
 use myrulesiot::mqtt::{
-    self, create_engine_reducer, EngineAction, EngineFunction, EngineResult, EngineState,
-    ReducerFunction,
+    self, EngineAction, EngineFunction, EngineResult, EngineState, ReducerFunction,
 };
 use myrulesiot::rules::forward;
 use myrulesiot::runtime;
@@ -85,7 +84,7 @@ async fn internal() {
     runtime::task_runtime_loop(
         &pub_tx,
         sub_rx,
-        mqtt::MasterEngine::new(create_engine_reducer(engine_functions)),
+        mqtt::MasterEngine::new(engine_functions),
         init_state,
     )
     .await

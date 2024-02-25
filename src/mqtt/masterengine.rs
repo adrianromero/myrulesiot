@@ -20,9 +20,10 @@
 use super::{EngineAction, EngineMessage, EngineResult};
 use crate::runtime::Engine;
 use rumqttc::QoS;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReducerFunction {
     name: String,
     parameters: Vec<String>,
@@ -70,41 +71,33 @@ pub type EngineFunction = fn(
     params: &[String],
 ) -> Vec<EngineMessage>;
 
-pub struct MasterEngine<T: Fn(EngineState, EngineAction) -> EngineState>(T);
-
-impl<T: Fn(EngineState, EngineAction) -> EngineState> MasterEngine<T> {
-    pub fn new(reduce: T) -> Self {
-        Self(reduce)
-    }
-}
-
-impl<T: Fn(EngineState, EngineAction) -> EngineState>
-    Engine<EngineAction, EngineResult, EngineState> for MasterEngine<T>
-{
-    fn reduce(&self, state: EngineState, action: EngineAction) -> EngineState {
-        self.0(state, action)
-    }
-    fn template(&self, state: &EngineState) -> EngineResult {
-        EngineResult {
-            messages: state.messages.to_owned(),
-            is_final: state.is_final,
-        }
-    }
-    fn is_final(&self, result: &EngineResult) -> bool {
-        result.is_final
-    }
-}
-
-pub fn create_engine_reducer(
+pub struct MasterEngine {
     engine_functions: HashMap<String, EngineFunction>,
-) -> impl Fn(EngineState, EngineAction) -> EngineState {
-    move |state: EngineState, action: EngineAction| {
+}
+
+impl MasterEngine {
+    pub fn new(engine_functions: HashMap<String, EngineFunction>) -> Self {
+        Self { engine_functions }
+    }
+}
+
+impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
+    fn reduce(&self, state: EngineState, action: EngineAction) -> EngineState {
         let mut messages = Vec::<EngineMessage>::new();
         let mut newmap = state.info.clone();
-        let functions = state.reducers;
+        let mut functions = state.reducers.clone();
+
+        if action.matches("SYSMR/functions_push") {
+            let f: ReducerFunction = serde_json::from_slice(&action.payload).unwrap();
+            functions.push(f);
+        } else if action.matches("SYSMR/functions_pop") {
+            functions.pop();
+        } else if action.matches("SYSMR/functions_clear") {
+            functions.clear();
+        }
 
         for fun in &functions {
-            let func = engine_functions.get(&fun.name);
+            let func = self.engine_functions.get(&fun.name);
             match func {
                 Some(f) => messages.append(&mut f(&mut newmap, &action, &fun.parameters)),
                 None => messages.push(EngineMessage {
@@ -124,5 +117,14 @@ pub fn create_engine_reducer(
             messages,
             is_final,
         }
+    }
+    fn template(&self, state: &EngineState) -> EngineResult {
+        EngineResult {
+            messages: state.messages.clone(),
+            is_final: state.is_final,
+        }
+    }
+    fn is_final(&self, result: &EngineResult) -> bool {
+        result.is_final
     }
 }

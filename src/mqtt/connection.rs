@@ -124,15 +124,10 @@ async fn publication_loop(
 ) -> Result<(), rumqttc::ClientError> {
     // This is the future in charge of publishing result messages and canceling if final
     while let Some(res) = rx.recv().await {
-        for elem in res.messages.into_iter() {
+        for elem in res.messages {
             log::debug!("Publication loop -> {:?}", elem);
             client
-                .publish(
-                    elem.topic,
-                    elem.qos,
-                    elem.retain,
-                    Vec::from(&elem.payload[..]),
-                )
+                .publish(elem.topic, elem.qos, elem.retain, elem.payload)
                 .await?;
         }
 
