@@ -23,9 +23,13 @@ pub use connection::{
     new_connection, task_publication_loop, task_subscription_loop, task_timer_loop,
 };
 
+mod enginecommon;
+pub use enginecommon::{EngineAction, EngineMessage, EngineResult};
+
 mod connectionengine;
 pub use connectionengine::create_reducer;
-pub use connectionengine::{
-    ConnectionAction, ConnectionEngine, ConnectionMessage, ConnectionResult, ConnectionState,
-    FnMQTTReducer,
-};
+pub use connectionengine::{ConnectionEngine, FnMQTTReducer};
+
+mod masterengine;
+pub use masterengine::create_engine_reducer;
+pub use masterengine::{EngineFunction, EngineState, MasterEngine, ReducerFunction};

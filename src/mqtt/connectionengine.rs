@@ -19,13 +19,14 @@
 
 use std::collections::HashMap;
 
+use super::{EngineAction, EngineMessage, EngineResult};
 use crate::runtime::Engine;
-use rumqttc::{Publish, QoS};
 
 #[derive(Debug)]
 pub struct ConnectionState {
     pub info: HashMap<String, Vec<u8>>,
-    pub messages: Vec<ConnectionMessage>,
+    pub functions: Vec<(String, Vec<String>)>,
+    pub messages: Vec<EngineMessage>,
     pub is_final: bool,
 }
 
@@ -33,85 +34,46 @@ impl Default for ConnectionState {
     fn default() -> Self {
         ConnectionState {
             info: Default::default(),
+            functions: vec![],
             messages: vec![],
             is_final: false,
         }
     }
 }
 
-#[derive(Debug)]
-pub struct ConnectionAction {
-    pub topic: String,
-    pub payload: Vec<u8>,
-    pub timestamp: i64,
-}
+pub struct ConnectionEngine<T: Fn(ConnectionState, EngineAction) -> ConnectionState>(T);
 
-impl ConnectionAction {
-    pub fn matches(&self, filter: &str) -> bool {
-        rumqttc::matches(&self.topic, filter)
-    }
-    pub fn matches_action(&self, filter: &str, payload: Vec<u8>) -> bool {
-        rumqttc::matches(&self.topic, filter) && payload.eq(&self.payload)
-    }
-}
-
-impl From<Publish> for ConnectionAction {
-    fn from(p: Publish) -> ConnectionAction {
-        ConnectionAction {
-            topic: p.topic,
-            payload: p.payload.into(),
-            timestamp: chrono::Local::now().timestamp_millis(),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct ConnectionResult {
-    pub messages: Vec<ConnectionMessage>,
-    pub is_final: bool,
-}
-
-pub struct ConnectionEngine<T: Fn(ConnectionState, ConnectionAction) -> ConnectionState>(T);
-
-impl<T: Fn(ConnectionState, ConnectionAction) -> ConnectionState> ConnectionEngine<T> {
+impl<T: Fn(ConnectionState, EngineAction) -> ConnectionState> ConnectionEngine<T> {
     pub fn new(reduce: T) -> Self {
         Self(reduce)
     }
 }
 
-impl<T: Fn(ConnectionState, ConnectionAction) -> ConnectionState>
-    Engine<ConnectionAction, ConnectionResult, ConnectionState> for ConnectionEngine<T>
+impl<T: Fn(ConnectionState, EngineAction) -> ConnectionState>
+    Engine<EngineAction, EngineResult, ConnectionState> for ConnectionEngine<T>
 {
-    fn reduce(&self, state: ConnectionState, action: ConnectionAction) -> ConnectionState {
+    fn reduce(&self, state: ConnectionState, action: EngineAction) -> ConnectionState {
         self.0(state, action)
     }
-    fn template(&self, state: &ConnectionState) -> ConnectionResult {
-        ConnectionResult {
+    fn template(&self, state: &ConnectionState) -> EngineResult {
+        EngineResult {
             messages: state.messages.to_owned(),
             is_final: state.is_final,
         }
     }
-    fn is_final(&self, result: &ConnectionResult) -> bool {
+    fn is_final(&self, result: &EngineResult) -> bool {
         result.is_final
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct ConnectionMessage {
-    pub qos: QoS,
-    pub retain: bool,
-    pub topic: String,
-    pub payload: Vec<u8>,
-}
-
 pub type FnMQTTReducer =
-    Box<dyn Fn(&mut HashMap<String, Vec<u8>>, &ConnectionAction) -> Vec<ConnectionMessage> + Send>;
+    Box<dyn Fn(&mut HashMap<String, Vec<u8>>, &EngineAction) -> Vec<EngineMessage> + Send>;
 
 pub fn create_reducer(
     reducers: Vec<FnMQTTReducer>,
-) -> impl Fn(ConnectionState, ConnectionAction) -> ConnectionState {
-    move |state: ConnectionState, action: ConnectionAction| {
-        let mut messages = Vec::<ConnectionMessage>::new();
+) -> impl Fn(ConnectionState, EngineAction) -> ConnectionState {
+    move |state: ConnectionState, action: EngineAction| {
+        let mut messages = Vec::<EngineMessage>::new();
         let mut newmap = state.info.clone();
 
         for f in &reducers {
@@ -122,6 +84,7 @@ pub fn create_reducer(
 
         ConnectionState {
             info: newmap,
+            functions: vec![],
             messages,
             is_final,
         }

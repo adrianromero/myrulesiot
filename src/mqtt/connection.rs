@@ -25,7 +25,7 @@ use tokio::sync::mpsc;
 use tokio::task;
 use tokio::time;
 
-use super::{ConnectionAction, ConnectionResult};
+use super::{EngineAction, EngineResult};
 
 #[derive(Debug)]
 pub struct ConnectionValues {
@@ -82,7 +82,7 @@ pub async fn new_connection(
 }
 
 async fn subscription_loop(
-    tx: mpsc::Sender<ConnectionAction>,
+    tx: mpsc::Sender<EngineAction>,
     mut eventloop: EventLoop,
 ) -> Result<(), Box<dyn Error>> {
     loop {
@@ -90,7 +90,7 @@ async fn subscription_loop(
         log::debug!("EventLoop Event -> {:?}", event);
         match event {
             Result::Ok(Event::Incoming(Packet::Publish(publish))) => {
-                tx.send(ConnectionAction::from(publish)).await?;
+                tx.send(EngineAction::from(publish)).await?;
             }
             Result::Ok(_) => {}
             Result::Err(ConnectionError::Cancel) => {
@@ -102,7 +102,7 @@ async fn subscription_loop(
 }
 
 pub fn task_subscription_loop(
-    tx: &mpsc::Sender<ConnectionAction>,
+    tx: &mpsc::Sender<EngineAction>,
     eventloop: EventLoop,
 ) -> task::JoinHandle<()> {
     let subs_tx = tx.clone();
@@ -119,7 +119,7 @@ pub fn task_subscription_loop(
 }
 
 async fn publication_loop(
-    mut rx: mpsc::Receiver<ConnectionResult>,
+    mut rx: mpsc::Receiver<EngineResult>,
     client: AsyncClient,
 ) -> Result<(), rumqttc::ClientError> {
     // This is the future in charge of publishing result messages and canceling if final
@@ -145,7 +145,7 @@ async fn publication_loop(
 }
 
 pub fn task_publication_loop(
-    rx: mpsc::Receiver<ConnectionResult>,
+    rx: mpsc::Receiver<EngineResult>,
     client: AsyncClient,
 ) -> task::JoinHandle<()> {
     task::spawn(async move {
@@ -161,7 +161,7 @@ pub fn task_publication_loop(
 }
 
 pub fn task_timer_loop(
-    tx: &mpsc::Sender<ConnectionAction>,
+    tx: &mpsc::Sender<EngineAction>,
     duration: &chrono::Duration,
 ) -> task::JoinHandle<()> {
     let timer_tx = tx.clone();
@@ -172,7 +172,7 @@ pub fn task_timer_loop(
             time::sleep(time_duration).await;
             let localtime = chrono::Local::now();
             if timer_tx
-                .send(ConnectionAction {
+                .send(EngineAction {
                     topic: "SYSMR/user_action/tick".to_string(),
                     payload: localtime.to_rfc3339().into_bytes(),
                     timestamp: localtime.timestamp_millis(),

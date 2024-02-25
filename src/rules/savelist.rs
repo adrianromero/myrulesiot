@@ -21,7 +21,7 @@ use rumqttc::QoS;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::mqtt::{ConnectionAction, ConnectionMessage};
+use crate::mqtt::{EngineAction, EngineMessage};
 
 #[derive(Serialize, Deserialize)]
 struct ListStatus {
@@ -62,14 +62,12 @@ pub fn save_list(
     strtopic: &str,
     time_period: &chrono::Duration,
     count_values: usize,
-) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ConnectionAction) -> Vec<ConnectionMessage> {
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &EngineAction) -> Vec<EngineMessage> {
     let topic = strtopic.to_string();
     let topic_store = format!("{}/list", strtopic);
     let time_tick: i64 = time_period.num_milliseconds() / count_values as i64;
 
-    move |mapinfo: &mut HashMap<String, Vec<u8>>,
-          action: &ConnectionAction|
-          -> Vec<ConnectionMessage> {
+    move |mapinfo: &mut HashMap<String, Vec<u8>>, action: &EngineAction| -> Vec<EngineMessage> {
         if action.matches(&topic) {
             let mut status = get_list_status(mapinfo, &topic_store);
             status.current = Some(action.payload.to_vec());
@@ -89,7 +87,7 @@ pub fn save_list(
                         *last = status.current.clone();
                     }
                     mapinfo.insert(topic_store.clone(), bincode::serialize(&status).unwrap());
-                    return vec![ConnectionMessage {
+                    return vec![EngineMessage {
                         topic: topic_store.clone(),
                         payload: values_to_string(&status.values).into(),
                         qos: QoS::AtMostOnce,
@@ -108,7 +106,7 @@ pub fn save_list(
                             }
                         }
                         mapinfo.insert(topic_store.clone(), bincode::serialize(&status).unwrap());
-                        return vec![ConnectionMessage {
+                        return vec![EngineMessage {
                             topic: topic_store.clone(),
                             payload: values_to_string(&status.values).into(),
                             qos: QoS::AtMostOnce,
@@ -124,12 +122,10 @@ pub fn save_list(
 
 pub fn save_value(
     strtopic: impl Into<String>,
-) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ConnectionAction) -> Vec<ConnectionMessage> {
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &EngineAction) -> Vec<EngineMessage> {
     let topic: String = strtopic.into();
     let topic_store = format!("{}/store", topic);
-    move |mapinfo: &mut HashMap<String, Vec<u8>>,
-          action: &ConnectionAction|
-          -> Vec<ConnectionMessage> {
+    move |mapinfo: &mut HashMap<String, Vec<u8>>, action: &EngineAction| -> Vec<EngineMessage> {
         if action.matches(&topic) {
             mapinfo.insert(topic_store.clone(), action.payload.to_vec());
         }

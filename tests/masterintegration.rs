@@ -17,7 +17,12 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use myrulesiot::mqtt::{self, EngineAction, EngineResult};
+use std::collections::HashMap;
+
+use myrulesiot::mqtt::{
+    self, create_engine_reducer, EngineAction, EngineFunction, EngineResult, EngineState,
+    ReducerFunction,
+};
 use myrulesiot::rules::forward;
 use myrulesiot::runtime;
 use tokio::sync::mpsc;
@@ -26,11 +31,6 @@ use tokio::sync::mpsc;
 async fn internal() {
     let (sub_tx, sub_rx) = mpsc::channel::<EngineAction>(10);
     let (pub_tx, mut pub_rx) = mpsc::channel::<EngineResult>(10);
-
-    let reducers: Vec<mqtt::FnMQTTReducer> = vec![
-        Box::new(forward::box_forward_action("source_topic", "target_topic")),
-        Box::new(forward::box_forward_user_action_tick("myhelloiot/timer")),
-    ];
 
     sub_tx
         .send(EngineAction {
@@ -57,10 +57,36 @@ async fn internal() {
         .await
         .unwrap();
 
-    runtime::task_runtime_init_loop(
+    let engine_functions: HashMap<String, EngineFunction> = HashMap::from([
+        (
+            String::from("forward_action"),
+            forward::engine_forward_action as EngineFunction,
+        ),
+        (
+            String::from("forward_user_action_tick"),
+            forward::engine_forward_user_action_tick as EngineFunction,
+        ),
+    ]);
+
+    let init_state = EngineState::new(
+        Default::default(),
+        vec![
+            ReducerFunction::new(
+                "forward_action".into(),
+                vec!["source_topic".into(), "target_topic".into()],
+            ),
+            ReducerFunction::new(
+                "forward_user_action_tick".into(),
+                vec!["myhelloiot/timer".into()],
+            ),
+        ],
+    );
+
+    runtime::task_runtime_loop(
         &pub_tx,
         sub_rx,
-        mqtt::ConnectionEngine::new(mqtt::create_reducer(reducers)),
+        mqtt::MasterEngine::new(create_engine_reducer(engine_functions)),
+        init_state,
     )
     .await
     .unwrap();

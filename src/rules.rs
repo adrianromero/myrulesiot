@@ -24,11 +24,11 @@ pub mod zigbee;
 
 // pub fn light_actions(
 //     strtopic: &str,
-// ) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
+// ) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<EngineMessage> {
 //     let topic = strtopic.to_string();
 //     move |mapinfo: &mut HashMap<String, Vec<u8>>,
 //           action: &ActionMessage|
-//           -> Vec<ConnectionMessage> {
+//           -> Vec<EngineMessage> {
 //         //LightStatus temporizator
 //         let topic_temp = topic.clone() + "/temp";
 //         if action.matches(&topic_temp) {
@@ -42,7 +42,7 @@ pub mod zigbee;
 //                 })
 //                 .unwrap(),
 //             );
-//             return vec![ConnectionMessage {
+//             return vec![EngineMessage {
 //                 topic,
 //                 payload: "1".into(),
 //                 qos: QoS::AtMostOnce,
@@ -61,7 +61,7 @@ pub mod zigbee;
 //                 })
 //                 .unwrap(),
 //             );
-//             return vec![ConnectionMessage {
+//             return vec![EngineMessage {
 //                 topic,
 //                 payload: value.to_string().into(),
 //                 qos: QoS::AtMostOnce,
@@ -84,7 +84,7 @@ pub mod zigbee;
 //                     })
 //                     .unwrap(),
 //                 );
-//                 return vec![ConnectionMessage {
+//                 return vec![EngineMessage {
 //                     topic,
 //                     payload: newpayload,
 //                     qos: QoS::AtMostOnce,
@@ -106,7 +106,7 @@ pub mod zigbee;
 //                         })
 //                         .unwrap(),
 //                     );
-//                     return vec![ConnectionMessage {
+//                     return vec![EngineMessage {
 //                         topic,
 //                         payload: "0".into(),
 //                         qos: QoS::AtMostOnce,
@@ -121,13 +121,13 @@ pub mod zigbee;
 
 // pub fn modal_value(
 //     strtopic: &str,
-// ) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<ConnectionMessage> {
+// ) -> impl FnOnce(&mut HashMap<String, Vec<u8>>, &ActionMessage) -> Vec<EngineMessage> {
 //     let topic = strtopic.to_string();
 //     let mut topic_value = strtopic.to_string();
 //     topic_value.push_str("/value");
-//     move |_: &mut HashMap<String, Vec<u8>>, action: &ActionMessage| -> Vec<ConnectionMessage> {
+//     move |_: &mut HashMap<String, Vec<u8>>, action: &ActionMessage| -> Vec<EngineMessage> {
 //         if action.matches(&topic_value) {
-//             return vec![ConnectionMessage {
+//             return vec![EngineMessage {
 //                 topic,
 //                 payload: "0".into(),
 //                 qos: QoS::AtMostOnce,

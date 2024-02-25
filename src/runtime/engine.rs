@@ -25,7 +25,7 @@ pub trait Engine<A, R, S>
 where
     A: Debug,
     R: Debug,
-    S: Debug + Default,
+    S: Debug,
 {
     fn reduce(&self, state: S, action: A) -> S;
     fn template(&self, state: &S) -> R;
@@ -36,15 +36,15 @@ pub async fn runtime_loop<A, R, S, E>(
     tx: mpsc::Sender<R>,
     mut rx: mpsc::Receiver<A>,
     engine: E,
+    initstate: S,
 ) -> Result<(), mpsc::error::SendError<R>>
 where
     A: Debug,
     R: Debug,
-    S: Debug + Default,
+    S: Debug,
     E: Engine<A, R, S>,
 {
-    let mut state = Default::default();
-
+    let mut state = initstate;
     while let Some(action) = rx.recv().await {
         log::debug!("Persist action {:?}.", &action);
 
@@ -71,17 +71,18 @@ pub fn task_runtime_loop<A, R, S, E>(
     tx: &mpsc::Sender<R>,
     rx: mpsc::Receiver<A>,
     engine: E,
+    initstate: S,
 ) -> task::JoinHandle<()>
 where
     A: Debug + Send + 'static,
     R: Debug + Send + 'static,
-    S: Debug + Default + Send + 'static,
+    S: Debug + Send + 'static,
     E: Engine<A, R, S> + Send + 'static,
 {
     let runtime_tx = tx.clone();
     task::spawn(async move {
         log::info!("Started runtime engine...");
-        match runtime_loop(runtime_tx, rx, engine).await {
+        match runtime_loop(runtime_tx, rx, engine, initstate).await {
             Result::Ok(_) => {}
             Result::Err(error) => {
                 log::warn!("Runtime error {}", error);
@@ -89,4 +90,18 @@ where
         }
         log::info!("Exited runtime engine...");
     })
+}
+
+pub fn task_runtime_init_loop<A, R, S, E>(
+    tx: &mpsc::Sender<R>,
+    rx: mpsc::Receiver<A>,
+    engine: E,
+) -> task::JoinHandle<()>
+where
+    A: Debug + Send + 'static,
+    R: Debug + Send + 'static,
+    S: Debug + Default + Send + 'static,
+    E: Engine<A, R, S> + Send + 'static,
+{
+    task_runtime_loop(tx, rx, engine, Default::default())
 }

@@ -22,7 +22,7 @@ use std::collections::HashMap;
 
 use rumqttc::QoS;
 
-use crate::mqtt::{ConnectionAction, ConnectionMessage};
+use crate::mqtt::{EngineAction, EngineMessage};
 
 #[derive(Serialize, Deserialize)]
 struct LightStatus {
@@ -54,15 +54,13 @@ fn insert_light_status(mapinfo: &mut HashMap<String, Vec<u8>>, topic: &str, stat
 }
 
 pub fn toggle(
-    actionmatch: impl Fn(&ConnectionAction) -> bool,
+    actionmatch: impl Fn(&EngineAction) -> bool,
     strtopic: impl Into<String>,
     strtopicpub: impl Into<String>,
-) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ConnectionAction) -> Vec<ConnectionMessage> {
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &EngineAction) -> Vec<EngineMessage> {
     let topic = strtopic.into();
     let topicpub = strtopicpub.into();
-    move |mapinfo: &mut HashMap<String, Vec<u8>>,
-          action: &ConnectionAction|
-          -> Vec<ConnectionMessage> {
+    move |mapinfo: &mut HashMap<String, Vec<u8>>, action: &EngineAction| -> Vec<EngineMessage> {
         if actionmatch(action) {
             let status = get_light_status(mapinfo, &topic);
             let newvalue: String = if status.value == "1" { "0" } else { "1" }.into();
@@ -75,7 +73,7 @@ pub fn toggle(
                     value: newvalue,
                 },
             );
-            return vec![ConnectionMessage {
+            return vec![EngineMessage {
                 topic: topicpub.clone(),
                 payload: newpayload,
                 qos: QoS::AtMostOnce,
@@ -88,17 +86,15 @@ pub fn toggle(
 }
 
 pub fn light_set(
-    actionmatch: impl Fn(&ConnectionAction) -> bool,
+    actionmatch: impl Fn(&EngineAction) -> bool,
     strtopic: impl Into<String>,
     strtopicpub: impl Into<String>,
     strvalue: impl Into<String>,
-) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ConnectionAction) -> Vec<ConnectionMessage> {
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &EngineAction) -> Vec<EngineMessage> {
     let topic = strtopic.into();
     let topicpub = strtopicpub.into();
     let newvalue = strvalue.into();
-    move |mapinfo: &mut HashMap<String, Vec<u8>>,
-          action: &ConnectionAction|
-          -> Vec<ConnectionMessage> {
+    move |mapinfo: &mut HashMap<String, Vec<u8>>, action: &EngineAction| -> Vec<EngineMessage> {
         if actionmatch(action) {
             let newpayload: Vec<u8> = newvalue.clone().into();
             insert_light_status(
@@ -109,7 +105,7 @@ pub fn light_set(
                     value: newvalue.clone(),
                 },
             );
-            return vec![ConnectionMessage {
+            return vec![EngineMessage {
                 topic: topicpub.clone(),
                 payload: newpayload,
                 qos: QoS::AtMostOnce,
@@ -122,31 +118,29 @@ pub fn light_set(
 }
 
 pub fn light_on(
-    actionmatch: impl Fn(&ConnectionAction) -> bool,
+    actionmatch: impl Fn(&EngineAction) -> bool,
     strtopic: impl Into<String>,
     strtopicpub: impl Into<String>,
-) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ConnectionAction) -> Vec<ConnectionMessage> {
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &EngineAction) -> Vec<EngineMessage> {
     light_set(actionmatch, strtopic, strtopicpub, "1")
 }
 
 pub fn light_off(
-    actionmatch: impl Fn(&ConnectionAction) -> bool,
+    actionmatch: impl Fn(&EngineAction) -> bool,
     strtopic: impl Into<String>,
     strtopicpub: impl Into<String>,
-) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ConnectionAction) -> Vec<ConnectionMessage> {
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &EngineAction) -> Vec<EngineMessage> {
     light_set(actionmatch, strtopic, strtopicpub, "0")
 }
 
 pub fn light_time(
-    actionmatch: impl Fn(&ConnectionAction) -> bool,
+    actionmatch: impl Fn(&EngineAction) -> bool,
     strtopic: impl Into<String>,
     strtopicpub: impl Into<String>,
-) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ConnectionAction) -> Vec<ConnectionMessage> {
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &EngineAction) -> Vec<EngineMessage> {
     let topic = strtopic.into();
     let topicpub = strtopicpub.into();
-    move |mapinfo: &mut HashMap<String, Vec<u8>>,
-          action: &ConnectionAction|
-          -> Vec<ConnectionMessage> {
+    move |mapinfo: &mut HashMap<String, Vec<u8>>, action: &EngineAction| -> Vec<EngineMessage> {
         if actionmatch(action) {
             // let smillis = String::from_utf8_lossy(&action.payload);
             // let millis: i64 = smillis.parse().unwrap_or(5000);
@@ -159,7 +153,7 @@ pub fn light_time(
                     value: String::from("1"),
                 },
             );
-            return vec![ConnectionMessage {
+            return vec![EngineMessage {
                 topic: topicpub.clone(),
                 payload: vec![b'1'],
                 qos: QoS::AtMostOnce,
@@ -174,12 +168,10 @@ pub fn light_time(
 pub fn light_time_reset(
     strtopic: impl Into<String>,
     strtopicpub: impl Into<String>,
-) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ConnectionAction) -> Vec<ConnectionMessage> {
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &EngineAction) -> Vec<EngineMessage> {
     let topic = strtopic.into();
     let topicpub = strtopicpub.into();
-    move |mapinfo: &mut HashMap<String, Vec<u8>>,
-          action: &ConnectionAction|
-          -> Vec<ConnectionMessage> {
+    move |mapinfo: &mut HashMap<String, Vec<u8>>, action: &EngineAction| -> Vec<EngineMessage> {
         if action.matches("SYSMR/user_action/tick") {
             let status = get_light_status(mapinfo, &topic);
             // if temporizator activated and time consumed then switch off
@@ -193,7 +185,7 @@ pub fn light_time_reset(
                             value: "0".to_string(),
                         },
                     );
-                    return vec![ConnectionMessage {
+                    return vec![EngineMessage {
                         topic: topicpub.clone(),
                         payload: vec![b'0'],
                         qos: QoS::AtMostOnce,
@@ -209,11 +201,9 @@ pub fn light_time_reset(
 
 pub fn status(
     strtopic: impl Into<String>,
-) -> impl Fn(&mut HashMap<String, Vec<u8>>, &ConnectionAction) -> Vec<ConnectionMessage> {
+) -> impl Fn(&mut HashMap<String, Vec<u8>>, &EngineAction) -> Vec<EngineMessage> {
     let topic = strtopic.into();
-    move |mapinfo: &mut HashMap<String, Vec<u8>>,
-          action: &ConnectionAction|
-          -> Vec<ConnectionMessage> {
+    move |mapinfo: &mut HashMap<String, Vec<u8>>, action: &EngineAction| -> Vec<EngineMessage> {
         if action.matches(&topic) {
             let status = get_light_status(mapinfo, &topic);
             let value = String::from_utf8_lossy(&action.payload);
