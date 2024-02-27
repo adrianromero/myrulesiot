@@ -100,7 +100,7 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
             functions.clear();
         } else if action.matches(&format!("{}/command/functions_list", self.prefix_id)) {
             messages.push(EngineMessage {
-                topic: format!("{}/notify/system_error", self.prefix_id),
+                topic: format!("{}/notify/functions_list", self.prefix_id),
                 payload: serde_json::to_string(&functions).unwrap().into_bytes(),
                 qos: QoS::AtMostOnce,
                 retain: false,
