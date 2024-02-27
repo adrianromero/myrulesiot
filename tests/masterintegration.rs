@@ -24,6 +24,7 @@ use myrulesiot::mqtt::{
 };
 use myrulesiot::rules::forward;
 use myrulesiot::runtime;
+use serde_json::json;
 use tokio::sync::mpsc;
 
 #[tokio::test]
@@ -31,6 +32,17 @@ async fn internal() {
     let (sub_tx, sub_rx) = mpsc::channel::<EngineAction>(10);
     let (pub_tx, mut pub_rx) = mpsc::channel::<EngineResult>(10);
 
+    // Push function
+    sub_tx
+        .send(EngineAction {
+            topic: "MYRULESTEST/command/functions_push".into(),
+            payload: b"{\"name\":\"forward_user_action\", \"parameters\": {\"topic\":\"SYSTIMER/tick\",\"forwardtopic\":\"myhelloiot/timer\"}}".into(),
+            timestamp: 0,
+        })
+        .await
+        .unwrap();
+
+    // Forward user action tick
     sub_tx
         .send(EngineAction {
             topic: "source_topic".into(),
@@ -41,16 +53,16 @@ async fn internal() {
         .unwrap();
     sub_tx
         .send(EngineAction {
-            topic: "SYSMR/user_action/tick".into(),
-            payload: b"aaa".into(),
+            topic: "SYSTIMER/tick".into(),
+            payload: b"123".into(),
             timestamp: 0,
         })
         .await
         .unwrap();
     sub_tx
         .send(EngineAction {
-            topic: "SYSMR/system_action".into(),
-            payload: b"exit".into(),
+            topic: "MYRULESTEST/command/exit".into(),
+            payload: vec![],
             timestamp: 0,
         })
         .await
@@ -62,29 +74,23 @@ async fn internal() {
             forward::engine_forward_action as EngineFunction,
         ),
         (
-            String::from("forward_user_action_tick"),
-            forward::engine_forward_user_action_tick as EngineFunction,
+            String::from("forward_user_action"),
+            forward::engine_forward_user_action as EngineFunction,
         ),
     ]);
 
     let init_state = EngineState::new(
         Default::default(),
-        vec![
-            ReducerFunction::new(
-                "forward_action".into(),
-                vec!["source_topic".into(), "target_topic".into()],
-            ),
-            ReducerFunction::new(
-                "forward_user_action_tick".into(),
-                vec!["myhelloiot/timer".into()],
-            ),
-        ],
+        vec![ReducerFunction::new(
+            "forward_action".into(),
+            json!({ "topic":"source_topic", "forwardtopic":"target_topic"}),
+        )],
     );
 
     runtime::task_runtime_loop(
         &pub_tx,
         sub_rx,
-        mqtt::MasterEngine::new(engine_functions),
+        mqtt::MasterEngine::new(String::from("MYRULESTEST"), engine_functions),
         init_state,
     )
     .await
@@ -93,15 +99,24 @@ async fn internal() {
     std::mem::drop(sub_tx);
     std::mem::drop(pub_tx);
 
+    // The function push result
+    let result = pub_rx.recv().await.unwrap();
+    assert_eq!(
+        "EngineResult { messages: [], is_final: false }",
+        format!("{:?}", result)
+    );
+
+    // The forward action result.
     let result = pub_rx.recv().await.unwrap();
     assert_eq!(
         "EngineResult { messages: [EngineMessage { qos: AtMostOnce, retain: false, topic: \"target_topic\", payload: [1] }], is_final: false }",
         format!("{:?}", result)
     );
 
+    // The forward user action tick result.
     let result = pub_rx.recv().await.unwrap();
     assert_eq!(
-        "EngineResult { messages: [EngineMessage { qos: AtMostOnce, retain: false, topic: \"myhelloiot/timer\", payload: [97, 97, 97] }], is_final: false }",
+        "EngineResult { messages: [EngineMessage { qos: AtMostOnce, retain: false, topic: \"myhelloiot/timer\", payload: [49, 50, 51] }], is_final: false }",
         format!("{:?}", result)
     );
 

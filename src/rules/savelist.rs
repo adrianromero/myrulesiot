@@ -59,76 +59,86 @@ fn get_list_status(mapinfo: &mut HashMap<String, Vec<u8>>, topic: &str) -> ListS
 }
 
 pub fn save_list(
-    strtopic: &str,
+    mapinfo: &mut HashMap<String, Vec<u8>>,
+    action: &EngineAction,
+    topic: &str,
     time_period: &chrono::Duration,
     count_values: usize,
-) -> impl Fn(&mut HashMap<String, Vec<u8>>, &EngineAction) -> Vec<EngineMessage> {
-    let topic = strtopic.to_string();
-    let topic_store = format!("{}/list", strtopic);
+) -> Vec<EngineMessage> {
+    let topic_store = format!("{}/list", topic);
     let time_tick: i64 = time_period.num_milliseconds() / count_values as i64;
 
-    move |mapinfo: &mut HashMap<String, Vec<u8>>, action: &EngineAction| -> Vec<EngineMessage> {
-        if action.matches(&topic) {
-            let mut status = get_list_status(mapinfo, &topic_store);
-            status.current = Some(action.payload.to_vec());
-            mapinfo.insert(topic_store.clone(), bincode::serialize(&status).unwrap());
-            return vec![];
-        }
+    if action.matches(&topic) {
+        let mut status = get_list_status(mapinfo, &topic_store);
+        status.current = Some(action.payload.to_vec());
+        mapinfo.insert(topic_store, bincode::serialize(&status).unwrap());
+        return vec![];
+    }
 
-        // Timer for temporization
-        if action.matches("SYSMR/user_action/tick") {
-            let mut status = get_list_status(mapinfo, &topic_store);
-            // if temporizator activated and time consumed then switch off
-            match status.temp {
-                None => {
-                    status.temp = Some(action.timestamp);
-                    status.values = vec![None; count_values];
-                    if let Some(last) = status.values.last_mut() {
-                        *last = status.current.clone();
+    // Timer for temporization
+    if action.matches("SYSMR/user_action/tick") {
+        let mut status = get_list_status(mapinfo, &topic_store);
+        // if temporizator activated and time consumed then switch off
+        match status.temp {
+            None => {
+                status.temp = Some(action.timestamp);
+                status.values = vec![None; count_values];
+                if let Some(last) = status.values.last_mut() {
+                    *last = status.current.clone();
+                }
+                mapinfo.insert(topic_store.clone(), bincode::serialize(&status).unwrap());
+                return vec![EngineMessage {
+                    topic: topic_store,
+                    payload: values_to_string(&status.values).into(),
+                    qos: QoS::AtMostOnce,
+                    retain: false,
+                }];
+            }
+            Some(t) => {
+                if action.timestamp > t + time_tick {
+                    let mut newt = t;
+                    while action.timestamp > newt + time_tick {
+                        newt += time_tick;
+                        status.temp = Some(newt); // while because this also can be less than action.timestamp
+                        status.values.rotate_left(1);
+                        if let Some(last) = status.values.last_mut() {
+                            *last = status.current.clone();
+                        }
                     }
                     mapinfo.insert(topic_store.clone(), bincode::serialize(&status).unwrap());
                     return vec![EngineMessage {
-                        topic: topic_store.clone(),
+                        topic: topic_store,
                         payload: values_to_string(&status.values).into(),
                         qos: QoS::AtMostOnce,
                         retain: false,
                     }];
                 }
-                Some(t) => {
-                    if action.timestamp > t + time_tick {
-                        let mut newt = t;
-                        while action.timestamp > newt + time_tick {
-                            newt += time_tick;
-                            status.temp = Some(newt); // while because this also can be less than action.timestamp
-                            status.values.rotate_left(1);
-                            if let Some(last) = status.values.last_mut() {
-                                *last = status.current.clone();
-                            }
-                        }
-                        mapinfo.insert(topic_store.clone(), bincode::serialize(&status).unwrap());
-                        return vec![EngineMessage {
-                            topic: topic_store.clone(),
-                            payload: values_to_string(&status.values).into(),
-                            qos: QoS::AtMostOnce,
-                            retain: false,
-                        }];
-                    }
-                }
             }
         }
-        vec![]
     }
+    vec![]
 }
 
+#[derive(Serialize, Deserialize)]
+struct SaveValueParam {
+    topic: String,
+}
+
+pub fn engine_save_value(
+    mapinfo: &mut HashMap<String, Vec<u8>>,
+    action: &EngineAction,
+    params: &serde_json::Value,
+) -> Vec<EngineMessage> {
+    let p: SaveValueParam = serde_json::from_value(params.clone()).unwrap();
+    save_value(mapinfo, action, &p.topic)
+}
 pub fn save_value(
-    strtopic: impl Into<String>,
-) -> impl Fn(&mut HashMap<String, Vec<u8>>, &EngineAction) -> Vec<EngineMessage> {
-    let topic: String = strtopic.into();
-    let topic_store = format!("{}/store", topic);
-    move |mapinfo: &mut HashMap<String, Vec<u8>>, action: &EngineAction| -> Vec<EngineMessage> {
-        if action.matches(&topic) {
-            mapinfo.insert(topic_store.clone(), action.payload.to_vec());
-        }
-        vec![]
+    mapinfo: &mut HashMap<String, Vec<u8>>,
+    action: &EngineAction,
+    topic: &str,
+) -> Vec<EngineMessage> {
+    if action.matches(topic) {
+        mapinfo.insert(format!("{}/store", topic), action.payload.to_vec());
     }
+    vec![]
 }

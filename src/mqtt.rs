@@ -26,9 +26,5 @@ pub use connection::{
 mod enginecommon;
 pub use enginecommon::{EngineAction, EngineMessage, EngineResult};
 
-mod connectionengine;
-pub use connectionengine::create_reducer;
-pub use connectionengine::{ConnectionEngine, FnMQTTReducer};
-
 mod masterengine;
 pub use masterengine::{EngineFunction, EngineState, MasterEngine, ReducerFunction};

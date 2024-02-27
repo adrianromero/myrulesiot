@@ -20,36 +20,36 @@
 use std::collections::HashMap;
 
 use rumqttc::QoS;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
 
 use crate::mqtt::{EngineAction, EngineMessage};
 
-pub fn engine_forward_user_action_tick(
+#[derive(Serialize, Deserialize)]
+struct ForwardUserActionParam {
+    topic: String,
+    forwardtopic: String,
+}
+
+pub fn engine_forward_user_action(
     mapinfo: &mut HashMap<String, Vec<u8>>,
     action: &EngineAction,
-    params: &[String],
+    params: &serde_json::Value,
 ) -> Vec<EngineMessage> {
-    forward_user_action_tick(mapinfo, action, &params[0])
+    let p: ForwardUserActionParam = serde_json::from_value(params.clone()).unwrap();
+    forward_user_action(mapinfo, action, &p.topic, &p.forwardtopic)
 }
 
-pub fn box_forward_user_action_tick(
-    topic: &str,
-) -> impl Fn(&mut HashMap<String, Vec<u8>>, &EngineAction) -> Vec<EngineMessage> {
-    let topic: String = String::from(topic);
-    move |mapinfo: &mut HashMap<String, Vec<u8>>, action: &EngineAction| -> Vec<EngineMessage> {
-        forward_user_action_tick(mapinfo, action, &topic)
-    }
-}
-
-fn forward_user_action_tick(
+fn forward_user_action(
     _: &mut HashMap<String, Vec<u8>>,
     action: &EngineAction,
     topic: &str,
+    forwardtopic: &str,
 ) -> Vec<EngineMessage> {
-    if action.matches("SYSMR/user_action/tick") {
+    if action.matches(topic) {
         return vec![EngineMessage {
-            topic: String::from(topic),
+            topic: String::from(forwardtopic),
             payload: action.payload.clone(),
             qos: QoS::AtMostOnce,
             retain: false,
@@ -58,23 +58,19 @@ fn forward_user_action_tick(
     vec![]
 }
 
-pub fn box_forward_action(
-    topic: &str,
-    forwardtopic: &str,
-) -> impl Fn(&mut HashMap<String, Vec<u8>>, &EngineAction) -> Vec<EngineMessage> {
-    let topic: String = String::from(topic);
-    let forwardtopic: String = String::from(forwardtopic);
-    move |mapinfo: &mut HashMap<String, Vec<u8>>, action: &EngineAction| -> Vec<EngineMessage> {
-        forward_action(mapinfo, action, &topic, &forwardtopic)
-    }
+#[derive(Serialize, Deserialize)]
+struct ForwardActionParam {
+    topic: String,
+    forwardtopic: String,
 }
 
 pub fn engine_forward_action(
     mapinfo: &mut HashMap<String, Vec<u8>>,
     action: &EngineAction,
-    params: &[String],
+    params: &serde_json::Value,
 ) -> Vec<EngineMessage> {
-    forward_action(mapinfo, action, &params[0], &params[1])
+    let p: ForwardActionParam = serde_json::from_value(params.clone()).unwrap();
+    forward_action(mapinfo, action, &p.topic, &p.forwardtopic)
 }
 
 fn forward_action(
@@ -99,10 +95,9 @@ fn forward_action(
                         vec![1]
                     }
                 }
-            }
-            .into();
+            };
 
-            mapinfo.insert(String::from(forwardtopic), newvalue.to_vec());
+            mapinfo.insert(String::from(forwardtopic), newvalue.clone());
             return vec![EngineMessage {
                 topic: String::from(forwardtopic),
                 payload: newvalue,

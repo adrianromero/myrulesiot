@@ -26,11 +26,11 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReducerFunction {
     name: String,
-    parameters: Vec<String>,
+    parameters: serde_json::Value,
 }
 
 impl ReducerFunction {
-    pub fn new(name: String, parameters: Vec<String>) -> Self {
+    pub fn new(name: String, parameters: serde_json::Value) -> Self {
         ReducerFunction { name, parameters }
     }
 }
@@ -68,16 +68,20 @@ impl EngineState {
 pub type EngineFunction = fn(
     mapinfo: &mut HashMap<String, Vec<u8>>,
     action: &EngineAction,
-    params: &[String],
+    parameters: &serde_json::Value,
 ) -> Vec<EngineMessage>;
 
 pub struct MasterEngine {
+    prefix_id: String,
     engine_functions: HashMap<String, EngineFunction>,
 }
 
 impl MasterEngine {
-    pub fn new(engine_functions: HashMap<String, EngineFunction>) -> Self {
-        Self { engine_functions }
+    pub fn new(prefix_id: String, engine_functions: HashMap<String, EngineFunction>) -> Self {
+        Self {
+            prefix_id,
+            engine_functions,
+        }
     }
 }
 
@@ -86,31 +90,37 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
         let mut messages = Vec::<EngineMessage>::new();
         let mut newmap = state.info.clone();
         let mut functions = state.reducers.clone();
-
-        if action.matches("SYSMR/functions_push") {
+        let mut is_final = false;
+        if action.matches(&format!("{}/command/functions_push", self.prefix_id)) {
             let f: ReducerFunction = serde_json::from_slice(&action.payload).unwrap();
             functions.push(f);
-        } else if action.matches("SYSMR/functions_pop") {
+        } else if action.matches(&format!("{}/command/functions_pop", self.prefix_id)) {
             functions.pop();
-        } else if action.matches("SYSMR/functions_clear") {
+        } else if action.matches(&format!("{}/command/functions_clear", self.prefix_id)) {
             functions.clear();
-        }
-
-        for fun in &functions {
-            let func = self.engine_functions.get(&fun.name);
-            match func {
-                Some(f) => messages.append(&mut f(&mut newmap, &action, &fun.parameters)),
-                None => messages.push(EngineMessage {
-                    topic: String::from("SYSMR/system_error"),
-                    payload: format!("Function not found: {}", &fun.name).into(),
-                    qos: QoS::AtMostOnce,
-                    retain: false,
-                }),
+        } else if action.matches(&format!("{}/command/functions_list", self.prefix_id)) {
+            messages.push(EngineMessage {
+                topic: format!("{}/notify/system_error", self.prefix_id),
+                payload: serde_json::to_string(&functions).unwrap().into_bytes(),
+                qos: QoS::AtMostOnce,
+                retain: false,
+            });
+        } else if action.matches(&format!("{}/command/exit", self.prefix_id)) {
+            is_final = true;
+        } else {
+            for fun in &functions {
+                let func = self.engine_functions.get(&fun.name);
+                match func {
+                    Some(f) => messages.append(&mut f(&mut newmap, &action, &fun.parameters)),
+                    None => messages.push(EngineMessage {
+                        topic: format!("{}/notify/system_error", self.prefix_id),
+                        payload: format!("Function not found: {}", &fun.name).into(),
+                        qos: QoS::AtMostOnce,
+                        retain: false,
+                    }),
+                }
             }
         }
-
-        let is_final = action.matches_action("SYSMR/system_action", "exit".into());
-
         EngineState {
             info: newmap,
             reducers: functions,
