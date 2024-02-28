@@ -58,15 +58,31 @@ fn get_list_status(mapinfo: &mut HashMap<String, Vec<u8>>, topic: &str) -> ListS
         .unwrap_or_default()
 }
 
+#[derive(Serialize, Deserialize)]
+struct SaveListParam {
+    topic: String,
+    duration: i64,
+    count: usize,
+}
+
+pub fn engine_save_list(
+    mapinfo: &mut HashMap<String, Vec<u8>>,
+    action: &EngineAction,
+    params: &serde_json::Value,
+) -> Vec<EngineMessage> {
+    let p: SaveListParam = serde_json::from_value(params.clone()).unwrap();
+    save_list(mapinfo, action, &p.topic, p.duration, p.count)
+}
+
 pub fn save_list(
     mapinfo: &mut HashMap<String, Vec<u8>>,
     action: &EngineAction,
     topic: &str,
-    time_period: &chrono::Duration,
-    count_values: usize,
+    duration: i64,
+    count: usize,
 ) -> Vec<EngineMessage> {
     let topic_store = format!("{}/list", topic);
-    let time_tick: i64 = time_period.num_milliseconds() / count_values as i64;
+    let time_tick: i64 = duration / count as i64;
 
     if action.matches(&topic) {
         let mut status = get_list_status(mapinfo, &topic_store);
@@ -76,13 +92,13 @@ pub fn save_list(
     }
 
     // Timer for temporization
-    if action.matches("SYSMR/user_action/tick") {
+    if action.matches("SYSTIMER/tick") {
         let mut status = get_list_status(mapinfo, &topic_store);
         // if temporizator activated and time consumed then switch off
         match status.temp {
             None => {
                 status.temp = Some(action.timestamp);
-                status.values = vec![None; count_values];
+                status.values = vec![None; count];
                 if let Some(last) = status.values.last_mut() {
                     *last = status.current.clone();
                 }
