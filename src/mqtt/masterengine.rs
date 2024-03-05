@@ -21,6 +21,7 @@ use super::{EngineAction, EngineMessage, EngineResult};
 use crate::runtime::Engine;
 use rumqttc::QoS;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,8 +38,8 @@ impl ReducerFunction {
 
 #[derive(Debug)]
 pub struct EngineState {
-    pub info: HashMap<String, Vec<u8>>,
-    pub reducers: Vec<ReducerFunction>,
+    pub info: serde_json::Value,
+    pub functions: Vec<ReducerFunction>,
     pub messages: Vec<EngineMessage>,
     pub is_final: bool,
 }
@@ -46,8 +47,8 @@ pub struct EngineState {
 impl Default for EngineState {
     fn default() -> Self {
         EngineState {
-            info: Default::default(),
-            reducers: vec![],
+            info: json!({}),
+            functions: vec![],
             messages: vec![],
             is_final: false,
         }
@@ -55,10 +56,10 @@ impl Default for EngineState {
 }
 
 impl EngineState {
-    pub fn new(info: HashMap<String, Vec<u8>>, reducers: Vec<ReducerFunction>) -> Self {
+    pub fn new(info: serde_json::Value, functions: Vec<ReducerFunction>) -> Self {
         EngineState {
             info,
-            reducers,
+            functions,
             messages: vec![],
             is_final: false,
         }
@@ -66,7 +67,8 @@ impl EngineState {
 }
 
 pub type EngineFunction = fn(
-    mapinfo: &mut HashMap<String, Vec<u8>>,
+    loopstack: &mut serde_json::Value,
+    mapinfo: &mut serde_json::Value,
     action: &EngineAction,
     parameters: &serde_json::Value,
 ) -> Vec<EngineMessage>;
@@ -88,9 +90,10 @@ impl MasterEngine {
 impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
     fn reduce(&self, state: EngineState, action: EngineAction) -> EngineState {
         let mut messages = Vec::<EngineMessage>::new();
-        let mut newmap = state.info.clone();
-        let mut functions = state.reducers.clone();
+        let mut info = state.info.clone();
+        let mut functions = state.functions.clone();
         let mut is_final = false;
+
         if action.matches(&format!("{}/command/functions_push", self.prefix_id)) {
             let f: ReducerFunction = serde_json::from_slice(&action.payload).unwrap();
             functions.push(f);
@@ -105,13 +108,20 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
                 qos: QoS::AtMostOnce,
                 retain: false,
             });
+        } else if action.matches(&format!("{}/command/send_messages", self.prefix_id)) {
+            messages = state.messages;
         } else if action.matches(&format!("{}/command/exit", self.prefix_id)) {
             is_final = true;
         } else {
+            let mut loopstack = json!({});
+            log::debug!("executing {} functions)", functions.len());
             for fun in &functions {
+                log::debug!("executing {}({})", fun.name, fun.parameters);
                 let func = self.engine_functions.get(&fun.name);
                 match func {
-                    Some(f) => messages.append(&mut f(&mut newmap, &action, &fun.parameters)),
+                    Some(f) => {
+                        messages.append(&mut f(&mut loopstack, &mut info, &action, &fun.parameters))
+                    }
                     None => messages.push(EngineMessage {
                         topic: format!("{}/notify/system_error", self.prefix_id),
                         payload: format!("Function not found: {}", &fun.name).into(),
@@ -122,8 +132,8 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
             }
         }
         EngineState {
-            info: newmap,
-            reducers: functions,
+            info,
+            functions,
             messages,
             is_final,
         }

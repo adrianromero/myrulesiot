@@ -17,32 +17,32 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use std::collections::HashMap;
-
 use rumqttc::QoS;
-use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
 
 use crate::mqtt::{EngineAction, EngineMessage};
 
-#[derive(Serialize, Deserialize)]
-struct ForwardUserActionParam {
-    topic: String,
-    forwardtopic: String,
-}
+// #[derive(Serialize, Deserialize)]
+// struct ForwardUserActionParam {
+//     topic: String,
+//     forwardtopic: String,
+// }
 
 pub fn engine_forward_user_action(
-    mapinfo: &mut HashMap<String, Vec<u8>>,
+    loopstack: &mut serde_json::Value,
+    mapinfo: &mut serde_json::Value,
     action: &EngineAction,
     params: &serde_json::Value,
 ) -> Vec<EngineMessage> {
-    let p: ForwardUserActionParam = serde_json::from_value(params.clone()).unwrap();
-    forward_user_action(mapinfo, action, &p.topic, &p.forwardtopic)
+    let topic = params["topic"].as_str().unwrap();
+    let forwardtopic = params["forwardtopic"].as_str().unwrap();
+    forward_user_action(loopstack, mapinfo, action, topic, forwardtopic)
 }
 
 fn forward_user_action(
-    _: &mut HashMap<String, Vec<u8>>,
+    _loopstack: &mut serde_json::Value,
+    _info: &mut serde_json::Value,
     action: &EngineAction,
     topic: &str,
     forwardtopic: &str,
@@ -58,23 +58,20 @@ fn forward_user_action(
     vec![]
 }
 
-#[derive(Serialize, Deserialize)]
-struct ForwardActionParam {
-    topic: String,
-    forwardtopic: String,
-}
-
 pub fn engine_forward_action(
-    mapinfo: &mut HashMap<String, Vec<u8>>,
+    loopstack: &mut serde_json::Value,
+    mapinfo: &mut serde_json::Value,
     action: &EngineAction,
     params: &serde_json::Value,
 ) -> Vec<EngineMessage> {
-    let p: ForwardActionParam = serde_json::from_value(params.clone()).unwrap();
-    forward_action(mapinfo, action, &p.topic, &p.forwardtopic)
+    let topic = params["topic"].as_str().unwrap();
+    let forwardtopic = params["forwardtopic"].as_str().unwrap();
+    forward_action(loopstack, mapinfo, action, topic, forwardtopic)
 }
 
 fn forward_action(
-    mapinfo: &mut HashMap<String, Vec<u8>>,
+    _loopstack: &mut serde_json::Value,
+    mapinfo: &mut serde_json::Value,
     action: &EngineAction,
     topic: &str,
     forwardtopic: &str,
@@ -82,25 +79,15 @@ fn forward_action(
     if action.matches(topic) {
         let json_payload: Value = serde_json::from_slice(&action.payload).unwrap_or(json!(null));
         if json_payload["action"] == json!("toggle") {
-            let status = mapinfo
-                .get(forwardtopic)
-                .map(|s| String::from_utf8_lossy(&s));
-
-            let newvalue: Vec<u8> = match status {
-                None => vec![1],
-                Some(st) => {
-                    if st == "1" {
-                        vec![0]
-                    } else {
-                        vec![1]
-                    }
-                }
+            let status = mapinfo[forwardtopic].as_bool();
+            let newvalue: bool = match status {
+                None => true,
+                Some(st) => !st,
             };
-
-            mapinfo.insert(String::from(forwardtopic), newvalue.clone());
+            mapinfo[forwardtopic] = json!(newvalue);
             return vec![EngineMessage {
                 topic: String::from(forwardtopic),
-                payload: newvalue,
+                payload: if newvalue { vec![1] } else { vec![0] },
                 qos: QoS::AtMostOnce,
                 retain: false,
             }];

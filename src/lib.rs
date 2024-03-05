@@ -21,3 +21,6 @@ pub mod devices;
 pub mod mqtt;
 pub mod rules;
 pub mod runtime;
+
+#[cfg(test)]
+mod tests;

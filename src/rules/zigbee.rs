@@ -16,7 +16,6 @@
 //    You should have received a copy of the GNU General Public License
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
-use std::collections::HashMap;
 
 use rumqttc::QoS;
 use serde_json::json;
@@ -24,57 +23,64 @@ use serde_json::Value;
 
 use crate::mqtt::{EngineAction, EngineMessage};
 
-pub fn actuator(actuatortopic: &str, action: &str) -> impl Fn(&EngineAction) -> bool {
-    let str_actuatortopic: String = actuatortopic.to_owned();
-    let str_action: String = action.to_owned();
+pub fn engine_ikea_actuator(
+    loopstack: &mut serde_json::Value,
+    mapinfo: &mut serde_json::Value,
+    action: &EngineAction,
+    params: &serde_json::Value,
+) -> Vec<EngineMessage> {
+    let topic = params["topic"].as_str().unwrap();
+    let command = params["command"].as_str().unwrap();
+    ikea_actuator(loopstack, mapinfo, action, topic, command)
+}
 
-    move |action: &EngineAction| -> bool {
-        if action.matches(&str_actuatortopic) {
-            let json_payload: Value =
-                serde_json::from_slice(&action.payload).unwrap_or(json!(null));
-            json_payload["action"] == json!(&str_action)
-        } else {
-            false
-        }
+// command values
+// "toggle"
+// "brightness_up_click"
+// "brightness_down_click"
+// "arrow_right_click"
+// "arrow_left_click"
+
+fn ikea_actuator(
+    _loopstack: &mut serde_json::Value,
+    mapinfo: &mut serde_json::Value,
+    action: &EngineAction,
+    topic: &str,
+    command: &str,
+) -> Vec<EngineMessage> {
+    if action.matches(topic) {
+        let json_payload: Value = serde_json::from_slice(&action.payload).unwrap_or(json!(null));
+        let actuator = json_payload["action"] == json!(command);
+        mapinfo["actuator"] = json!(actuator);
+
+        log::info!("actuator payload {}", json_payload);
     }
+    vec![]
 }
 
-pub fn actuator_toggle(actuatortopic: &str) -> impl Fn(&EngineAction) -> bool {
-    actuator(actuatortopic, "toggle")
+pub fn engine_shelly_relay(
+    loopstack: &mut serde_json::Value,
+    mapinfo: &mut serde_json::Value,
+    action: &EngineAction,
+    params: &serde_json::Value,
+) -> Vec<EngineMessage> {
+    let topic = params["topic"].as_str().unwrap();
+    shelly_relay(loopstack, mapinfo, action, topic)
 }
 
-pub fn actuator_brightness_up(actuatortopic: &str) -> impl Fn(&EngineAction) -> bool {
-    actuator(actuatortopic, "brightness_up_click")
-}
-
-pub fn actuator_brightness_down(actuatortopic: &str) -> impl Fn(&EngineAction) -> bool {
-    actuator(actuatortopic, "brightness_down_click")
-}
-
-pub fn actuator_arrow_right(actuatortopic: &str) -> impl Fn(&EngineAction) -> bool {
-    actuator(actuatortopic, "arrow_right_click")
-}
-
-pub fn actuator_arrow_left(actuatortopic: &str) -> impl Fn(&EngineAction) -> bool {
-    actuator(actuatortopic, "arrow_left_click")
-}
-
-pub fn light_toggle(
-    actionmatch: impl Fn(&EngineAction) -> bool,
-    strtopic: impl Into<String>,
-) -> impl Fn(&mut HashMap<String, Vec<u8>>, &EngineAction) -> Vec<EngineMessage> {
-    let topic = strtopic.into();
-
-    move |_mapinfo: &mut HashMap<String, Vec<u8>>, action: &EngineAction| -> Vec<EngineMessage> {
-        if actionmatch(action) {
-            return vec![EngineMessage {
-                topic: format!("{}/set", &topic),
-                payload: "{\"state\":\"TOGGLE\"}".into(),
-                qos: QoS::AtMostOnce,
-                retain: false,
-            }];
-        }
-
-        vec![]
+fn shelly_relay(
+    _loopstack: &mut serde_json::Value,
+    mapinfo: &mut serde_json::Value,
+    _action: &EngineAction,
+    topic: &str,
+) -> Vec<EngineMessage> {
+    if mapinfo["actuator"] == json!(true) {
+        return vec![EngineMessage {
+            topic: String::from(topic),
+            payload: b"on".into(),
+            qos: QoS::AtMostOnce,
+            retain: false,
+        }];
     }
+    vec![]
 }

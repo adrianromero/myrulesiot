@@ -37,7 +37,7 @@ pub async fn runtime_loop<A, R, S, E>(
     mut rx: mpsc::Receiver<A>,
     engine: E,
     initstate: S,
-) -> Result<(), mpsc::error::SendError<R>>
+) -> S
 where
     A: Debug,
     R: Debug,
@@ -58,13 +58,13 @@ where
 
         let is_final = engine.is_final(&result);
 
-        tx.send(result).await?;
+        tx.send(result).await.unwrap();
 
         if is_final {
             break;
         }
     }
-    Ok(())
+    state
 }
 
 pub fn task_runtime_loop<A, R, S, E>(
@@ -72,7 +72,7 @@ pub fn task_runtime_loop<A, R, S, E>(
     rx: mpsc::Receiver<A>,
     engine: E,
     initstate: S,
-) -> task::JoinHandle<()>
+) -> task::JoinHandle<S>
 where
     A: Debug + Send + 'static,
     R: Debug + Send + 'static,
@@ -82,13 +82,9 @@ where
     let runtime_tx = tx.clone();
     task::spawn(async move {
         log::info!("Started runtime engine...");
-        match runtime_loop(runtime_tx, rx, engine, initstate).await {
-            Result::Ok(_) => {}
-            Result::Err(error) => {
-                log::warn!("Runtime error {}", error);
-            }
-        }
+        let finalstate = runtime_loop(runtime_tx, rx, engine, initstate).await;
         log::info!("Exited runtime engine...");
+        finalstate
     })
 }
 
@@ -96,7 +92,7 @@ pub fn task_runtime_init_loop<A, R, S, E>(
     tx: &mpsc::Sender<R>,
     rx: mpsc::Receiver<A>,
     engine: E,
-) -> task::JoinHandle<()>
+) -> task::JoinHandle<S>
 where
     A: Debug + Send + 'static,
     R: Debug + Send + 'static,
