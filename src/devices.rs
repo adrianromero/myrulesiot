@@ -21,7 +21,7 @@ use std::collections::HashMap;
 
 use rumqttc::QoS;
 
-use crate::mqtt::{EngineAction, EngineMessage};
+use crate::mqtt::{from_qos, EngineAction, EngineMessage};
 
 pub fn simulate_relay(
     roottopic: &str,
@@ -55,7 +55,7 @@ pub fn simulate_relay(
             return vec![EngineMessage {
                 topic: root_topic.clone(),
                 payload: newvalue.into(),
-                qos: QoS::AtMostOnce,
+                qos: from_qos(QoS::AtMostOnce),
                 retain: true,
             }];
         }

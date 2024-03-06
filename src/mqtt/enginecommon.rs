@@ -17,7 +17,8 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use rumqttc::{Publish, QoS};
+use rumqttc::Publish;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
 pub struct EngineAction {
@@ -45,9 +46,9 @@ impl From<Publish> for EngineAction {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EngineMessage {
-    pub qos: QoS,
+    pub qos: i32,
     pub retain: bool,
     pub topic: String,
     pub payload: Vec<u8>,

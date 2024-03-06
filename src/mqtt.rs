@@ -20,7 +20,8 @@
 mod connection;
 pub use connection::ConnectionValues;
 pub use connection::{
-    new_connection, task_publication_loop, task_subscription_loop, task_timer_loop,
+    from_qos, new_connection, task_publication_loop, task_subscription_loop, task_timer_loop,
+    to_qos,
 };
 
 mod enginecommon;

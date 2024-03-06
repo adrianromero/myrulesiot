@@ -21,7 +21,7 @@ use rumqttc::QoS;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::mqtt::{EngineAction, EngineMessage};
+use crate::mqtt::{from_qos, EngineAction, EngineMessage};
 
 #[derive(Serialize, Deserialize)]
 struct ListStatus {
@@ -106,7 +106,7 @@ pub fn save_list(
                 return vec![EngineMessage {
                     topic: topic_store,
                     payload: values_to_string(&status.values).into(),
-                    qos: QoS::AtMostOnce,
+                    qos: from_qos(QoS::AtMostOnce),
                     retain: false,
                 }];
             }
@@ -125,7 +125,7 @@ pub fn save_list(
                     return vec![EngineMessage {
                         topic: topic_store,
                         payload: values_to_string(&status.values).into(),
-                        qos: QoS::AtMostOnce,
+                        qos: from_qos(QoS::AtMostOnce),
                         retain: false,
                     }];
                 }

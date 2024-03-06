@@ -17,7 +17,7 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use super::{EngineAction, EngineMessage, EngineResult};
+use super::{from_qos, EngineAction, EngineMessage, EngineResult};
 use crate::runtime::Engine;
 use rumqttc::QoS;
 use serde::{Deserialize, Serialize};
@@ -36,7 +36,7 @@ impl ReducerFunction {
     }
 }
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct EngineState {
     pub info: serde_json::Value,
     pub functions: Vec<ReducerFunction>,
@@ -97,15 +97,27 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
         if action.matches(&format!("{}/command/functions_push", self.prefix_id)) {
             let f: ReducerFunction = serde_json::from_slice(&action.payload).unwrap();
             functions.push(f);
+            messages.push(EngineMessage {
+                topic: format!("{}/notify/functions_push", self.prefix_id),
+                payload: json!({
+                "success":true,
+                })
+                .to_string()
+                .into_bytes(),
+                qos: from_qos(QoS::AtMostOnce),
+                retain: false,
+            });
         } else if action.matches(&format!("{}/command/functions_pop", self.prefix_id)) {
             functions.pop();
         } else if action.matches(&format!("{}/command/functions_clear", self.prefix_id)) {
             functions.clear();
-        } else if action.matches(&format!("{}/command/functions_list", self.prefix_id)) {
+        } else if action.matches(&format!("{}/command/functions_putall", self.prefix_id)) {
+            functions = serde_json::from_slice(&action.payload).unwrap();
+        } else if action.matches(&format!("{}/command/functions_getall", self.prefix_id)) {
             messages.push(EngineMessage {
                 topic: format!("{}/notify/functions_list", self.prefix_id),
                 payload: serde_json::to_string(&functions).unwrap().into_bytes(),
-                qos: QoS::AtMostOnce,
+                qos: from_qos(QoS::AtMostOnce),
                 retain: false,
             });
         } else if action.matches(&format!("{}/command/send_messages", self.prefix_id)) {
@@ -125,7 +137,7 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
                     None => messages.push(EngineMessage {
                         topic: format!("{}/notify/system_error", self.prefix_id),
                         payload: format!("Function not found: {}", &fun.name).into(),
-                        qos: QoS::AtMostOnce,
+                        qos: from_qos(QoS::AtMostOnce),
                         retain: false,
                     }),
                 }

@@ -22,7 +22,7 @@ use std::collections::HashMap;
 
 use rumqttc::QoS;
 
-use crate::mqtt::{EngineAction, EngineMessage};
+use crate::mqtt::{from_qos, EngineAction, EngineMessage};
 
 #[derive(Serialize, Deserialize)]
 struct LightStatus {
@@ -76,7 +76,7 @@ pub fn toggle(
             return vec![EngineMessage {
                 topic: topicpub.clone(),
                 payload: newpayload,
-                qos: QoS::AtMostOnce,
+                qos: from_qos(QoS::AtMostOnce),
                 retain: false,
             }];
         }
@@ -108,7 +108,7 @@ pub fn light_set(
             return vec![EngineMessage {
                 topic: topicpub.clone(),
                 payload: newpayload,
-                qos: QoS::AtMostOnce,
+                qos: from_qos(QoS::AtMostOnce),
                 retain: false,
             }];
         }
@@ -156,7 +156,7 @@ pub fn light_time(
             return vec![EngineMessage {
                 topic: topicpub.clone(),
                 payload: vec![b'1'],
-                qos: QoS::AtMostOnce,
+                qos: from_qos(QoS::AtMostOnce),
                 retain: false,
             }];
         }
@@ -188,7 +188,7 @@ pub fn light_time_reset(
                     return vec![EngineMessage {
                         topic: topicpub.clone(),
                         payload: vec![b'0'],
-                        qos: QoS::AtMostOnce,
+                        qos: from_qos(QoS::AtMostOnce),
                         retain: false,
                     }];
                 }

@@ -21,7 +21,7 @@ use rumqttc::QoS;
 use serde_json::json;
 use serde_json::Value;
 
-use crate::mqtt::{EngineAction, EngineMessage};
+use crate::mqtt::{from_qos, EngineAction, EngineMessage};
 
 // #[derive(Serialize, Deserialize)]
 // struct ForwardUserActionParam {
@@ -51,7 +51,7 @@ fn forward_user_action(
         return vec![EngineMessage {
             topic: String::from(forwardtopic),
             payload: action.payload.clone(),
-            qos: QoS::AtMostOnce,
+            qos: from_qos(QoS::AtMostOnce),
             retain: false,
         }];
     }
@@ -88,7 +88,7 @@ fn forward_action(
             return vec![EngineMessage {
                 topic: String::from(forwardtopic),
                 payload: if newvalue { vec![1] } else { vec![0] },
-                qos: QoS::AtMostOnce,
+                qos: from_qos(QoS::AtMostOnce),
                 retain: false,
             }];
         }

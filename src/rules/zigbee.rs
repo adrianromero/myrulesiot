@@ -21,7 +21,7 @@ use rumqttc::QoS;
 use serde_json::json;
 use serde_json::Value;
 
-use crate::mqtt::{EngineAction, EngineMessage};
+use crate::mqtt::{from_qos, EngineAction, EngineMessage};
 
 pub fn engine_ikea_actuator(
     loopstack: &mut serde_json::Value,
@@ -42,8 +42,8 @@ pub fn engine_ikea_actuator(
 // "arrow_left_click"
 
 fn ikea_actuator(
-    _loopstack: &mut serde_json::Value,
-    mapinfo: &mut serde_json::Value,
+    loopstack: &mut serde_json::Value,
+    _mapinfo: &mut serde_json::Value,
     action: &EngineAction,
     topic: &str,
     command: &str,
@@ -51,7 +51,7 @@ fn ikea_actuator(
     if action.matches(topic) {
         let json_payload: Value = serde_json::from_slice(&action.payload).unwrap_or(json!(null));
         let actuator = json_payload["action"] == json!(command);
-        mapinfo["actuator"] = json!(actuator);
+        loopstack["actuator"] = json!(actuator);
 
         log::info!("actuator payload {}", json_payload);
     }
@@ -69,16 +69,16 @@ pub fn engine_shelly_relay(
 }
 
 fn shelly_relay(
-    _loopstack: &mut serde_json::Value,
-    mapinfo: &mut serde_json::Value,
+    loopstack: &mut serde_json::Value,
+    _mapinfo: &mut serde_json::Value,
     _action: &EngineAction,
     topic: &str,
 ) -> Vec<EngineMessage> {
-    if mapinfo["actuator"] == json!(true) {
+    if loopstack["actuator"] == json!(true) {
         return vec![EngineMessage {
             topic: String::from(topic),
             payload: b"on".into(),
-            qos: QoS::AtMostOnce,
+            qos: from_qos(QoS::AtMostOnce),
             retain: false,
         }];
     }

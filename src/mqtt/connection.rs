@@ -118,6 +118,23 @@ pub fn task_subscription_loop(
     })
 }
 
+pub fn to_qos(num: i32) -> QoS {
+    match num {
+        0 => QoS::AtMostOnce,
+        1 => QoS::AtLeastOnce,
+        2 => QoS::ExactlyOnce,
+        _default => QoS::AtMostOnce,
+    }
+}
+
+pub fn from_qos(qos: QoS) -> i32 {
+    match qos {
+        QoS::AtMostOnce => 0,
+        QoS::AtLeastOnce => 1,
+        QoS::ExactlyOnce => 2,
+    }
+}
+
 async fn publication_loop(
     mut rx: mpsc::Receiver<EngineResult>,
     client: AsyncClient,
@@ -127,7 +144,7 @@ async fn publication_loop(
         for elem in res.messages {
             log::debug!("Publication loop -> {:?}", elem);
             client
-                .publish(elem.topic, elem.qos, elem.retain, elem.payload)
+                .publish(elem.topic, to_qos(elem.qos), elem.retain, elem.payload)
                 .await?;
         }
 
