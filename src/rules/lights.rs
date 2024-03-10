@@ -20,9 +20,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use rumqttc::QoS;
-
-use crate::mqtt::{from_qos, EngineAction, EngineMessage};
+use crate::mqtt::{EngineAction, EngineMessage};
 
 #[derive(Serialize, Deserialize)]
 struct LightStatus {
@@ -73,12 +71,7 @@ pub fn toggle(
                     value: newvalue,
                 },
             );
-            return vec![EngineMessage {
-                topic: topicpub.clone(),
-                payload: newpayload,
-                qos: from_qos(QoS::AtMostOnce),
-                retain: false,
-            }];
+            return vec![EngineMessage::new(topicpub.clone(), newpayload)];
         }
 
         vec![]
@@ -105,12 +98,7 @@ pub fn light_set(
                     value: newvalue.clone(),
                 },
             );
-            return vec![EngineMessage {
-                topic: topicpub.clone(),
-                payload: newpayload,
-                qos: from_qos(QoS::AtMostOnce),
-                retain: false,
-            }];
+            return vec![EngineMessage::new(topicpub.clone(), newpayload)];
         }
 
         vec![]
@@ -153,12 +141,7 @@ pub fn light_time(
                     value: String::from("1"),
                 },
             );
-            return vec![EngineMessage {
-                topic: topicpub.clone(),
-                payload: vec![b'1'],
-                qos: from_qos(QoS::AtMostOnce),
-                retain: false,
-            }];
+            return vec![EngineMessage::new(topicpub.clone(), vec![b'1'])];
         }
 
         vec![]
@@ -185,12 +168,7 @@ pub fn light_time_reset(
                             value: "0".to_string(),
                         },
                     );
-                    return vec![EngineMessage {
-                        topic: topicpub.clone(),
-                        payload: vec![b'0'],
-                        qos: from_qos(QoS::AtMostOnce),
-                        retain: false,
-                    }];
+                    return vec![EngineMessage::new(topicpub.clone(), vec![b'0'])];
                 }
             }
         }

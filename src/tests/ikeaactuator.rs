@@ -25,54 +25,47 @@ async fn basic_messages() {
     let mut testengine = RuntimeTester::new();
 
     // Push function
-    testengine.send(EngineAction {
-        topic: "MYRULESTEST/command/functions_push".into(),
-        payload: b"{\"name\":\"ikea_actuator\", \"parameters\": {\"topic\":\"zigbee2mqtt/Tradfri Remote\",\"command\":\"toggle\"}}".into(),
-        timestamp: 0,
-    })
-    .await;
-
-    // Push function
-    testengine.send(EngineAction {
-        topic: "MYRULESTEST/command/functions_push".into(),
-        payload: b"{\"name\":\"shelly_relay\", \"parameters\": {\"topic\":\"shellies/shellyswitch01/relay/1/command\"}}".into(),
-        timestamp: 0,
-    })
+    testengine.send(EngineAction::new(
+        "MYRULESTEST/command/functions_push".into(),
+        b"{\"name\":\"ikea_actuator\", \"parameters\": {\"topic\":\"zigbee2mqtt/Tradfri Remote\",\"command\":\"toggle\"}}".into()
+    ))
     .await;
 
     testengine
-        .send(EngineAction {
-            topic: "zigbee2mqtt/Tradfri Remote".into(),
-            payload: b"{\"action\":\"toggle\"}".into(),
-            timestamp: 0,
-        })
+    .send(EngineAction::new(
+        "MYRULESTEST/command/functions_push".into(),
+        b"{\"name\":\"shelly_relay\", \"parameters\": {\"topic\":\"shellies/shellyswitch01/relay/1/command\"}}".into(),
+    ))
+    .await;
+
+    testengine
+        .send(EngineAction::new(
+            "zigbee2mqtt/Tradfri Remote".into(),
+            b"{\"action\":\"toggle\"}".into(),
+        ))
         .await;
 
     testengine
-        .send(EngineAction {
-            topic: "MYRULESTEST/command/exit".into(),
-            payload: vec![],
-            timestamp: 0,
-        })
+        .send(EngineAction::new("MYRULESTEST/command/exit".into(), vec![]))
         .await;
 
     testengine.runtime_loop().await;
 
     // The function push result
     assert_eq!(
-        "EngineResult { messages: [], is_final: false }",
+        "EngineResult { messages: [EngineMessage { topic: \"MYRULESTEST/notify/functions_push\", payload: [123, 34, 102, 117, 110, 99, 116, 105, 111, 110, 34, 58, 34, 105, 107, 101, 97, 95, 97, 99, 116, 117, 97, 116, 111, 114, 34, 44, 34, 115, 117, 99, 99, 101, 115, 115, 34, 58, 116, 114, 117, 101, 125], properties: Null }], is_final: false }",
         format!("{:?}", testengine.recv().await.unwrap())
     );
 
     // The function push result
     assert_eq!(
-        "EngineResult { messages: [], is_final: false }",
+        "EngineResult { messages: [EngineMessage { topic: \"MYRULESTEST/notify/functions_push\", payload: [123, 34, 102, 117, 110, 99, 116, 105, 111, 110, 34, 58, 34, 115, 104, 101, 108, 108, 121, 95, 114, 101, 108, 97, 121, 34, 44, 34, 115, 117, 99, 99, 101, 115, 115, 34, 58, 116, 114, 117, 101, 125], properties: Null }], is_final: false }",
         format!("{:?}", testengine.recv().await.unwrap())
     );
 
     // The actuator action result.
     assert_eq!(
-        "EngineResult { messages: [EngineMessage { qos: AtMostOnce, retain: false, topic: \"shellies/shellyswitch01/relay/1/command\", payload: [111, 110] }], is_final: false }",
+        "EngineResult { messages: [EngineMessage { topic: \"shellies/shellyswitch01/relay/1/command\", payload: [111, 110], properties: Null }], is_final: false }",
         format!("{:?}", testengine.recv().await.unwrap())
     );
 

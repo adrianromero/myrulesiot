@@ -17,11 +17,10 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use rumqttc::QoS;
 use serde_json::json;
 use serde_json::Value;
 
-use crate::mqtt::{from_qos, EngineAction, EngineMessage};
+use crate::mqtt::{EngineAction, EngineMessage};
 
 // #[derive(Serialize, Deserialize)]
 // struct ForwardUserActionParam {
@@ -48,12 +47,10 @@ fn forward_user_action(
     forwardtopic: &str,
 ) -> Vec<EngineMessage> {
     if action.matches(topic) {
-        return vec![EngineMessage {
-            topic: String::from(forwardtopic),
-            payload: action.payload.clone(),
-            qos: from_qos(QoS::AtMostOnce),
-            retain: false,
-        }];
+        return vec![EngineMessage::new(
+            String::from(forwardtopic),
+            action.payload.clone(),
+        )];
     }
     vec![]
 }
@@ -85,12 +82,10 @@ fn forward_action(
                 Some(st) => !st,
             };
             mapinfo[forwardtopic] = json!(newvalue);
-            return vec![EngineMessage {
-                topic: String::from(forwardtopic),
-                payload: if newvalue { vec![1] } else { vec![0] },
-                qos: from_qos(QoS::AtMostOnce),
-                retain: false,
-            }];
+            return vec![EngineMessage::new(
+                String::from(forwardtopic),
+                if newvalue { vec![1] } else { vec![0] },
+            )];
         }
     }
     return vec![];

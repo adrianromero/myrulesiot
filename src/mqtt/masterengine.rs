@@ -17,9 +17,9 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use super::{from_qos, EngineAction, EngineMessage, EngineResult};
+use super::{EngineAction, EngineMessage, EngineResult};
 use crate::runtime::Engine;
-use rumqttc::QoS;
+
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
@@ -95,31 +95,66 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
         let mut is_final = false;
 
         if action.matches(&format!("{}/command/functions_push", self.prefix_id)) {
-            let f: ReducerFunction = serde_json::from_slice(&action.payload).unwrap();
-            functions.push(f);
-            messages.push(EngineMessage {
-                topic: format!("{}/notify/functions_push", self.prefix_id),
-                payload: json!({
-                "success":true,
-                })
-                .to_string()
-                .into_bytes(),
-                qos: from_qos(QoS::AtMostOnce),
-                retain: false,
-            });
+            match serde_json::from_slice::<ReducerFunction>(&action.payload) {
+                Ok(f) => {
+                    let function_name = f.name.clone();
+                    functions.push(f);
+                    messages.push(EngineMessage::new_json(
+                        format!("{}/notify/functions_push", self.prefix_id),
+                        json!({
+                          "success" : true,
+                          "function" : format!("{}", function_name)
+                        }),
+                    ));
+                }
+                Err(error) => messages.push(EngineMessage::new_json(
+                    format!("{}/notify/system_error", self.prefix_id),
+                    json!({
+                      "command" : "functions_push",
+                      "error" : format!("{}", error.to_string())
+                    }),
+                )),
+            }
         } else if action.matches(&format!("{}/command/functions_pop", self.prefix_id)) {
             functions.pop();
+            messages.push(EngineMessage::new_json(
+                format!("{}/notify/functions_pop", self.prefix_id),
+                json!({
+                  "success" : true,
+                }),
+            ));
         } else if action.matches(&format!("{}/command/functions_clear", self.prefix_id)) {
             functions.clear();
+            messages.push(EngineMessage::new_json(
+                format!("{}/notify/functions_clear", self.prefix_id),
+                json!({
+                  "success" : true,
+                }),
+            ));
         } else if action.matches(&format!("{}/command/functions_putall", self.prefix_id)) {
-            functions = serde_json::from_slice(&action.payload).unwrap();
+            match serde_json::from_slice(&action.payload) {
+                Ok(fns) => {
+                    functions = fns;
+                    messages.push(EngineMessage::new_json(
+                        format!("{}/notify/functions_putall", self.prefix_id),
+                        json!({
+                          "success" : true,
+                        }),
+                    ));
+                }
+                Err(error) => messages.push(EngineMessage::new_json(
+                    format!("{}/notify/system_error", self.prefix_id),
+                    json!({
+                      "command" : "functions_putall",
+                      "error" : format!("{}", error.to_string())
+                    }),
+                )),
+            }
         } else if action.matches(&format!("{}/command/functions_getall", self.prefix_id)) {
-            messages.push(EngineMessage {
-                topic: format!("{}/notify/functions_list", self.prefix_id),
-                payload: serde_json::to_string(&functions).unwrap().into_bytes(),
-                qos: from_qos(QoS::AtMostOnce),
-                retain: false,
-            });
+            messages.push(EngineMessage::new_json(
+                format!("{}/notify/functions_getall", self.prefix_id),
+                serde_json::to_value(&functions).unwrap(),
+            ));
         } else if action.matches(&format!("{}/command/send_messages", self.prefix_id)) {
             messages = state.messages;
         } else if action.matches(&format!("{}/command/exit", self.prefix_id)) {
@@ -134,12 +169,10 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
                     Some(f) => {
                         messages.append(&mut f(&mut loopstack, &mut info, &action, &fun.parameters))
                     }
-                    None => messages.push(EngineMessage {
-                        topic: format!("{}/notify/system_error", self.prefix_id),
-                        payload: format!("Function not found: {}", &fun.name).into(),
-                        qos: from_qos(QoS::AtMostOnce),
-                        retain: false,
-                    }),
+                    None => messages.push(EngineMessage::new(
+                        format!("{}/notify/system_error", self.prefix_id),
+                        format!("Function not found: {}", &fun.name).into(),
+                    )),
                 }
             }
         }

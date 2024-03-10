@@ -67,25 +67,25 @@ async fn basic_messages() {
 
     // The function push result
     assert_eq!(
-        "EngineResult { messages: [], is_final: false }",
+        "EngineResult { messages: [EngineMessage { topic: \"MYRULESTEST/notify/functions_push\", payload: [123, 34, 102, 117, 110, 99, 116, 105, 111, 110, 34, 58, 34, 102, 111, 114, 119, 97, 114, 100, 95, 97, 99, 116, 105, 111, 110, 34, 44, 34, 115, 117, 99, 99, 101, 115, 115, 34, 58, 116, 114, 117, 101, 125], properties: Null }], is_final: false }",
         format!("{:?}", testengine.recv().await.unwrap())
     );
 
     // The function push result
     assert_eq!(
-        "EngineResult { messages: [], is_final: false }",
+        "EngineResult { messages: [EngineMessage { topic: \"MYRULESTEST/notify/functions_push\", payload: [123, 34, 102, 117, 110, 99, 116, 105, 111, 110, 34, 58, 34, 102, 111, 114, 119, 97, 114, 100, 95, 117, 115, 101, 114, 95, 97, 99, 116, 105, 111, 110, 34, 44, 34, 115, 117, 99, 99, 101, 115, 115, 34, 58, 116, 114, 117, 101, 125], properties: Null }], is_final: false }",
         format!("{:?}", testengine.recv().await.unwrap())
     );
 
     // The forward action result.
     assert_eq!(
-        "EngineResult { messages: [EngineMessage { qos: AtMostOnce, retain: false, topic: \"target_topic\", payload: [1] }], is_final: false }",
+        "EngineResult { messages: [EngineMessage { topic: \"target_topic\", payload: [1], properties: Null }], is_final: false }",
         format!("{:?}", testengine.recv().await.unwrap())
     );
 
     // The forward user action tick result.
     assert_eq!(
-        "EngineResult { messages: [EngineMessage { qos: AtMostOnce, retain: false, topic: \"myhelloiot/timer\", payload: [49, 50, 51] }], is_final: false }",
+        "EngineResult { messages: [EngineMessage { topic: \"myhelloiot/timer\", payload: [49, 50, 51], properties: Null }], is_final: false }",
         format!("{:?}", testengine.recv().await.unwrap())
     );
 

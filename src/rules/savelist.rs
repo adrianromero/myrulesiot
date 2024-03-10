@@ -17,11 +17,10 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use rumqttc::QoS;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::mqtt::{from_qos, EngineAction, EngineMessage};
+use crate::mqtt::{EngineAction, EngineMessage};
 
 #[derive(Serialize, Deserialize)]
 struct ListStatus {
@@ -103,12 +102,10 @@ pub fn save_list(
                     *last = status.current.clone();
                 }
                 mapinfo.insert(topic_store.clone(), bincode::serialize(&status).unwrap());
-                return vec![EngineMessage {
-                    topic: topic_store,
-                    payload: values_to_string(&status.values).into(),
-                    qos: from_qos(QoS::AtMostOnce),
-                    retain: false,
-                }];
+                return vec![EngineMessage::new(
+                    topic_store,
+                    values_to_string(&status.values).into(),
+                )];
             }
             Some(t) => {
                 if action.timestamp > t + time_tick {
@@ -122,12 +119,10 @@ pub fn save_list(
                         }
                     }
                     mapinfo.insert(topic_store.clone(), bincode::serialize(&status).unwrap());
-                    return vec![EngineMessage {
-                        topic: topic_store,
-                        payload: values_to_string(&status.values).into(),
-                        qos: from_qos(QoS::AtMostOnce),
-                        retain: false,
-                    }];
+                    return vec![EngineMessage::new(
+                        topic_store,
+                        values_to_string(&status.values).into(),
+                    )];
                 }
             }
         }

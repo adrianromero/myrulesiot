@@ -18,12 +18,11 @@
 //
 
 use rumqttc::{
-    self, AsyncClient, ClientError, ConnectionError, Event, EventLoop, MqttOptions, Packet, QoS,
+    self, AsyncClient, ClientError, ConnectionError, Event, EventLoop, MqttOptions, Packet,
+    Publish, QoS,
 };
-use std::error::Error;
 use tokio::sync::mpsc;
 use tokio::task;
-use tokio::time;
 
 use super::{EngineAction, EngineResult};
 
@@ -52,7 +51,11 @@ impl Default for ConnectionValues {
     }
 }
 
-pub type TopicInfo = (String, QoS);
+pub type TopicInfo = (String, i32);
+
+fn to_engineaction(p: Publish) -> EngineAction {
+    EngineAction::new(p.topic, p.payload.into())
+}
 
 pub async fn new_connection(
     connection_info: ConnectionValues,
@@ -75,59 +78,55 @@ pub async fn new_connection(
     let (client, eventloop) = AsyncClient::new(mqttoptions, connection_info.cap);
 
     for (topic, qos) in subscriptions.into_iter() {
-        client.subscribe(topic, qos).await?;
+        client
+            .subscribe(topic, to_qos(qos).unwrap_or(QoS::AtLeastOnce))
+            .await?;
     }
 
     Ok((client, eventloop))
 }
 
-async fn subscription_loop(
-    tx: mpsc::Sender<EngineAction>,
-    mut eventloop: EventLoop,
-) -> Result<(), Box<dyn Error>> {
-    loop {
-        let event = eventloop.poll().await;
-        log::debug!("EventLoop Event -> {:?}", event);
-        match event {
-            Result::Ok(Event::Incoming(Packet::Publish(publish))) => {
-                tx.send(EngineAction::from(publish)).await?;
-            }
-            Result::Ok(_) => {}
-            Result::Err(ConnectionError::Cancel) => {
-                break Result::Ok(());
-            }
-            Result::Err(error) => return Result::Err(Box::new(error)),
-        }
-    }
-}
-
 pub fn task_subscription_loop(
     tx: &mpsc::Sender<EngineAction>,
-    eventloop: EventLoop,
+    mut eventloop: EventLoop,
 ) -> task::JoinHandle<()> {
     let subs_tx = tx.clone();
     task::spawn(async move {
         log::debug!("Started MQTT subscription...");
-        match subscription_loop(subs_tx, eventloop).await {
-            Result::Ok(_) => {}
-            Result::Err(error) => {
-                log::warn!("Subscription error {:?}", error);
+        loop {
+            let event = eventloop.poll().await;
+            log::debug!("EventLoop Event -> {:?}", event);
+            match event {
+                Result::Ok(Event::Incoming(Packet::Publish(publish))) => {
+                    if let Err(error) = subs_tx.send(to_engineaction(publish)).await {
+                        log::warn!("Exited MQTT subscription with error {}", error);
+                        return;
+                    }
+                }
+                Result::Ok(_) => {}
+                Result::Err(ConnectionError::Cancel) => {
+                    log::debug!("Exited MQTT subscription...");
+                    return;
+                }
+                Result::Err(error) => {
+                    log::warn!("Exited MQTT subscription with error {}", error);
+                    return;
+                }
             }
         }
-        log::debug!("Exited MQTT subscription...");
     })
 }
 
-pub fn to_qos(num: i32) -> QoS {
+pub fn to_qos(num: i32) -> Option<QoS> {
     match num {
-        0 => QoS::AtMostOnce,
-        1 => QoS::AtLeastOnce,
-        2 => QoS::ExactlyOnce,
-        _default => QoS::AtMostOnce,
+        0 => Some(QoS::AtMostOnce),
+        1 => Some(QoS::AtLeastOnce),
+        2 => Some(QoS::ExactlyOnce),
+        _nonvalid => None,
     }
 }
 
-pub fn from_qos(qos: QoS) -> i32 {
+pub fn from_qos(qos: QoS) -> i64 {
     match qos {
         QoS::AtMostOnce => 0,
         QoS::AtLeastOnce => 1,
@@ -135,67 +134,38 @@ pub fn from_qos(qos: QoS) -> i32 {
     }
 }
 
-async fn publication_loop(
+pub fn task_publication_loop(
     mut rx: mpsc::Receiver<EngineResult>,
     client: AsyncClient,
-) -> Result<(), rumqttc::ClientError> {
-    // This is the future in charge of publishing result messages and canceling if final
-    while let Some(res) = rx.recv().await {
-        for elem in res.messages {
-            log::debug!("Publication loop -> {:?}", elem);
-            client
-                .publish(elem.topic, to_qos(elem.qos), elem.retain, elem.payload)
-                .await?;
-        }
-
-        if res.is_final {
-            client.cancel().await?;
-        }
-    }
-
-    Result::Ok(())
-}
-
-pub fn task_publication_loop(
-    rx: mpsc::Receiver<EngineResult>,
-    client: AsyncClient,
 ) -> task::JoinHandle<()> {
     task::spawn(async move {
         log::debug!("Started MQTT publication...");
-        match publication_loop(rx, client).await {
-            Result::Ok(_) => {}
-            Result::Err(error) => {
-                log::warn!("Publication error {}", error);
+        while let Some(res) = rx.recv().await {
+            for elem in res.messages {
+                if let Err(error) = client
+                    .publish(
+                        elem.topic,
+                        elem.properties["qos"]
+                            .as_i64()
+                            .and_then(|i| to_qos(i as i32))
+                            .unwrap_or(QoS::AtLeastOnce),
+                        elem.properties["retain"].as_bool().unwrap_or(false),
+                        elem.payload,
+                    )
+                    .await
+                {
+                    log::warn!("Exited MQTT publication with error {}", error);
+                    return;
+                }
             }
-        }
-        log::debug!("Started MQTT publication...");
-    })
-}
 
-pub fn task_timer_loop(
-    tx: &mpsc::Sender<EngineAction>,
-    duration: &chrono::Duration,
-) -> task::JoinHandle<()> {
-    let timer_tx = tx.clone();
-    let time_duration = time::Duration::from_millis(duration.num_milliseconds() as u64);
-    task::spawn(async move {
-        log::debug!("Started user action tick subscription...");
-        loop {
-            time::sleep(time_duration).await;
-            let localtime = chrono::Local::now();
-            if timer_tx
-                .send(EngineAction {
-                    topic: "SYSMR/user_action/tick".to_string(),
-                    payload: localtime.to_rfc3339().into_bytes(),
-                    timestamp: localtime.timestamp_millis(),
-                })
-                .await
-                .is_err()
-            {
-                // If cannot send because channel closed, just ignore and exit.
-                break;
+            if res.is_final {
+                if let Err(error) = client.cancel().await {
+                    log::warn!("Exited MQTT publication with error {}", error);
+                    return;
+                }
             }
         }
-        log::debug!("Exited user action tick subscription...");
+        log::debug!("Exited MQTT publication...");
     })
 }

@@ -19,9 +19,7 @@
 
 use std::collections::HashMap;
 
-use rumqttc::QoS;
-
-use crate::mqtt::{from_qos, EngineAction, EngineMessage};
+use crate::mqtt::{EngineAction, EngineMessage};
 
 pub fn simulate_relay(
     roottopic: &str,
@@ -52,12 +50,7 @@ pub fn simulate_relay(
             }
             .as_bytes();
             mapinfo.insert(key_topic.clone(), newvalue.to_vec());
-            return vec![EngineMessage {
-                topic: root_topic.clone(),
-                payload: newvalue.into(),
-                qos: from_qos(QoS::AtMostOnce),
-                retain: true,
-            }];
+            return vec![EngineMessage::new(root_topic.clone(), newvalue.into())];
         }
 
         vec![]

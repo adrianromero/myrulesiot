@@ -17,11 +17,10 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use rumqttc::QoS;
 use serde_json::json;
 use serde_json::Value;
 
-use crate::mqtt::{from_qos, EngineAction, EngineMessage};
+use crate::mqtt::{EngineAction, EngineMessage};
 
 pub fn engine_ikea_actuator(
     loopstack: &mut serde_json::Value,
@@ -75,12 +74,7 @@ fn shelly_relay(
     topic: &str,
 ) -> Vec<EngineMessage> {
     if loopstack["actuator"] == json!(true) {
-        return vec![EngineMessage {
-            topic: String::from(topic),
-            payload: b"on".into(),
-            qos: from_qos(QoS::AtMostOnce),
-            retain: false,
-        }];
+        return vec![EngineMessage::new(String::from(topic), b"on".into())];
     }
     vec![]
 }

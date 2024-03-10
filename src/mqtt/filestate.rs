@@ -17,20 +17,32 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-mod connection;
-pub use connection::ConnectionValues;
-pub use connection::{
-    from_qos, new_connection, task_publication_loop, task_subscription_loop, to_qos,
-};
+use std::fs;
+use tokio::sync::mpsc;
+use tokio::task;
 
-mod enginecommon;
-pub use enginecommon::{EngineAction, EngineMessage, EngineResult};
+use super::EngineAction;
 
-mod masterengine;
-pub use masterengine::{EngineFunction, EngineState, MasterEngine, ReducerFunction};
+pub fn task_file_functions_loop(
+    tx: &mpsc::Sender<EngineAction>,
+    prefix_id: &str,
+    path: &str,
+) -> task::JoinHandle<()> {
+    let task_tx = tx.clone();
+    let prefix_id = String::from(prefix_id);
+    let functions = fs::read(path);
 
-mod timer;
-pub use timer::task_timer_loop;
+    task::spawn(async move {
+        log::debug!("Started file functions load...");
 
-mod filestate;
-pub use filestate::task_file_functions_loop;
+        task_tx
+            .send(EngineAction::new(
+                format!("{}/command/functions_putall", prefix_id),
+                functions.unwrap(),
+            ))
+            .await
+            .unwrap();
+
+        log::debug!("Exited file functions load...");
+    })
+}
