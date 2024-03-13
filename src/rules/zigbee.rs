@@ -51,8 +51,6 @@ fn ikea_actuator(
         let json_payload: Value = serde_json::from_slice(&action.payload).unwrap_or(json!(null));
         let actuator = json_payload["action"] == json!(command);
         loopstack["actuator"] = json!(actuator);
-
-        log::info!("actuator payload {}", json_payload);
     }
     vec![]
 }

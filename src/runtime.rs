@@ -18,8 +18,8 @@
 //
 
 mod engine;
+pub use engine::task_runtime_loop;
 pub use engine::Engine;
-pub use engine::{runtime_loop, task_runtime_init_loop, task_runtime_loop};
 
 mod multisubscriber;
 pub use multisubscriber::MultiRX;

@@ -19,7 +19,6 @@
 
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{Receiver, Sender};
-use tokio::task;
 
 pub struct MultiRX<T> {
     rx: Receiver<T>,
@@ -40,20 +39,16 @@ where
         rx
     }
 
-    pub fn task_publication_loop(mut self) -> task::JoinHandle<()> {
-        task::spawn(async move {
-            log::debug!("Started MultiSubscriber loop...");
-
-            while let Some(v) = self.rx.recv().await {
-                for tx in self.txs.iter() {
-                    if let Err(error) = tx.send(v.clone()).await {
-                        log::warn!("Exited MultiSubscriber loop with error {}", error);
-                        return;
-                    }
+    pub async fn task_publication_loop(mut self) {
+        log::debug!("Started MultiSubscriber loop...");
+        while let Some(v) = self.rx.recv().await {
+            for tx in self.txs.iter() {
+                if let Err(error) = tx.send(v.clone()).await {
+                    log::warn!("Exited MultiSubscriber loop with error {}", error);
+                    return;
                 }
             }
-
-            log::debug!("Exited MultiSubscriber loop...");
-        })
+        }
+        log::debug!("Exited MultiSubscriber loop...");
     }
 }

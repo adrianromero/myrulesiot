@@ -19,7 +19,6 @@
 
 use std::fmt::Debug;
 use tokio::sync::mpsc;
-use tokio::task;
 
 pub trait Engine<A, R, S>
 where
@@ -32,7 +31,7 @@ where
     fn is_final(&self, result: &R) -> bool;
 }
 
-pub async fn runtime_loop<A, R, S, E>(
+pub async fn task_runtime_loop<A, R, S, E>(
     tx: mpsc::Sender<R>,
     mut rx: mpsc::Receiver<A>,
     engine: E,
@@ -65,39 +64,4 @@ where
         }
     }
     state
-}
-
-pub fn task_runtime_loop<A, R, S, E>(
-    tx: &mpsc::Sender<R>,
-    rx: mpsc::Receiver<A>,
-    engine: E,
-    initstate: S,
-) -> task::JoinHandle<S>
-where
-    A: Debug + Send + 'static,
-    R: Debug + Send + 'static,
-    S: Debug + Send + 'static,
-    E: Engine<A, R, S> + Send + 'static,
-{
-    let runtime_tx = tx.clone();
-    task::spawn(async move {
-        log::info!("Started runtime engine...");
-        let finalstate = runtime_loop(runtime_tx, rx, engine, initstate).await;
-        log::info!("Exited runtime engine...");
-        finalstate
-    })
-}
-
-pub fn task_runtime_init_loop<A, R, S, E>(
-    tx: &mpsc::Sender<R>,
-    rx: mpsc::Receiver<A>,
-    engine: E,
-) -> task::JoinHandle<S>
-where
-    A: Debug + Send + 'static,
-    R: Debug + Send + 'static,
-    S: Debug + Default + Send + 'static,
-    E: Engine<A, R, S> + Send + 'static,
-{
-    task_runtime_loop(tx, rx, engine, Default::default())
 }

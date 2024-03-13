@@ -17,32 +17,43 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use std::fs;
 use tokio::sync::mpsc;
-use tokio::task;
 
-use super::EngineAction;
+use super::{EngineAction, EngineResult};
 
-pub fn task_file_functions_loop(
-    tx: &mpsc::Sender<EngineAction>,
-    prefix_id: &str,
-    path: &str,
-) -> task::JoinHandle<()> {
-    let task_tx = tx.clone();
-    let prefix_id = String::from(prefix_id);
-    let functions = fs::read(path);
+pub async fn task_load_functions_loop(
+    tx: mpsc::Sender<EngineAction>,
+    prefix_id: String,
+    functions: Vec<u8>,
+) {
+    log::debug!("Starting file functions load...");
 
-    task::spawn(async move {
-        log::debug!("Started file functions load...");
+    tx.send(EngineAction::new(
+        format!("{}/command/functions_putall", prefix_id),
+        functions,
+    ))
+    .await
+    .unwrap();
 
-        task_tx
-            .send(EngineAction::new(
-                format!("{}/command/functions_putall", prefix_id),
-                functions.unwrap(),
-            ))
-            .await
-            .unwrap();
+    log::debug!("Exiting file functions load...");
+}
 
-        log::debug!("Exited file functions load...");
-    })
+pub async fn task_save_functions_loop(
+    mut rx: mpsc::Receiver<EngineResult>,
+    prefix_id: String,
+) -> Option<Vec<u8>> {
+    let mut functions: Option<Vec<u8>> = None;
+    log::debug!("Starting file functions save...");
+    while let Some(res) = rx.recv().await {
+        for elem in res.messages.into_iter() {
+            if elem
+                .topic
+                .eq(&format!("{}/notify/exit_functions", &prefix_id))
+            {
+                functions = Some(elem.payload);
+            }
+        }
+    }
+    log::debug!("Exiting file functions save...");
+    functions
 }

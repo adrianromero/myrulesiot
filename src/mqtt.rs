@@ -18,10 +18,10 @@
 //
 
 mod connection;
-pub use connection::ConnectionValues;
 pub use connection::{
     from_qos, new_connection, task_publication_loop, task_subscription_loop, to_qos,
 };
+pub use connection::{ConnectionValues, Subscription};
 
 mod enginecommon;
 pub use enginecommon::{EngineAction, EngineMessage, EngineResult};
@@ -33,4 +33,4 @@ mod timer;
 pub use timer::task_timer_loop;
 
 mod filestate;
-pub use filestate::task_file_functions_loop;
+pub use filestate::{task_load_functions_loop, task_save_functions_loop};

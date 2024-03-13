@@ -176,6 +176,20 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
                 }
             }
         }
+
+        if is_final {
+            messages.push(EngineMessage::new_json(
+                format!("{}/notify/exit_functions", self.prefix_id),
+                serde_json::to_value(&functions).unwrap(),
+            ));
+            messages.push(EngineMessage::new_json(
+                format!("{}/notify/exit", self.prefix_id),
+                json!({
+                  "success" : true,
+                }),
+            ));
+        }
+
         EngineState {
             info,
             functions,

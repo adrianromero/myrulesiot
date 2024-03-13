@@ -77,13 +77,12 @@ impl RuntimeTester {
         ]);
 
         runtime::task_runtime_loop(
-            self.opt_pub_tx.as_ref().unwrap(),
+            self.opt_pub_tx.as_ref().unwrap().clone(),
             self.opt_sub_rx.take().unwrap(),
             mqtt::MasterEngine::new(String::from("MYRULESTEST"), engine_functions),
             EngineState::default(),
         )
-        .await
-        .unwrap();
+        .await;
 
         self.opt_pub_tx.take();
         self.opt_sub_tx.take();

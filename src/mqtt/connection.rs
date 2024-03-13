@@ -17,55 +17,79 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+use thiserror::Error;
+
 use rumqttc::{
     self, AsyncClient, ClientError, ConnectionError, Event, EventLoop, MqttOptions, Packet,
     Publish, QoS,
 };
+use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
-use tokio::task;
 
 use super::{EngineAction, EngineResult};
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ConnectionValues {
-    pub id: String,
+    #[serde(default = "client_id_default")]
+    pub client_id: String,
     pub host: String,
+    #[serde(default = "port_default")]
     pub port: u16,
+    #[serde(default = "keep_alive_default")]
     pub keep_alive: u16,
+    #[serde(default = "inflight_default")]
     pub inflight: u16,
+    #[serde(default = "clean_session_default")]
     pub clean_session: bool,
+    #[serde(default = "cap_default")]
     pub cap: usize,
 }
 
-impl Default for ConnectionValues {
-    fn default() -> Self {
-        ConnectionValues {
-            id: String::from(""),
-            host: String::from("localhost"),
-            port: 1883,
-            keep_alive: 5,
-            inflight: 10,
-            clean_session: false,
-            cap: 10,
-        }
-    }
+fn client_id_default() -> String {
+    String::new()
+}
+fn port_default() -> u16 {
+    1883
+}
+fn keep_alive_default() -> u16 {
+    5
+}
+fn inflight_default() -> u16 {
+    10
+}
+fn clean_session_default() -> bool {
+    false
+}
+fn cap_default() -> usize {
+    10
 }
 
-pub type TopicInfo = (String, i32);
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Subscription {
+    pub topic: String,
+    pub qos: i32,
+}
 
 fn to_engineaction(p: Publish) -> EngineAction {
     EngineAction::new(p.topic, p.payload.into())
 }
 
+#[derive(Error, Debug)]
+pub enum MQTTError {
+    #[error("ClientError")]
+    ClientError(#[from] ClientError),
+    #[error("Cannot connect to the MQTT broker")]
+    ConnectionError(#[from] ConnectionError),
+    #[error("Unexpected MQTT connection package")]
+    Unexpected,
+}
+
 pub async fn new_connection(
     connection_info: ConnectionValues,
-    subscriptions: Vec<TopicInfo>,
-) -> Result<(AsyncClient, EventLoop), ClientError> {
-    log::info!("MQTT {:?}", &connection_info);
-    log::info!("MQTT Subscriptions {:?}", &subscriptions);
-
+    subscriptions: Vec<Subscription>,
+) -> Result<(AsyncClient, EventLoop), MQTTError> {
     let mut mqttoptions = MqttOptions::new(
-        connection_info.id,
+        connection_info.client_id,
         connection_info.host,
         connection_info.port,
     );
@@ -75,9 +99,21 @@ pub async fn new_connection(
         .set_inflight(connection_info.inflight)
         .set_clean_session(connection_info.clean_session);
 
-    let (client, eventloop) = AsyncClient::new(mqttoptions, connection_info.cap);
+    let (client, mut eventloop) = AsyncClient::new(mqttoptions, connection_info.cap);
 
-    for (topic, qos) in subscriptions.into_iter() {
+    match eventloop.poll().await {
+        Result::Ok(Event::Incoming(Packet::ConnAck(_connack))) => {
+            // Connection successful
+        }
+        Result::Ok(_) => {
+            return Err(MQTTError::Unexpected);
+        }
+        Result::Err(error) => {
+            return Err(error.into());
+        }
+    }
+
+    for Subscription { topic, qos } in subscriptions.into_iter() {
         client
             .subscribe(topic, to_qos(qos).unwrap_or(QoS::AtLeastOnce))
             .await?;
@@ -86,35 +122,42 @@ pub async fn new_connection(
     Ok((client, eventloop))
 }
 
-pub fn task_subscription_loop(
-    tx: &mpsc::Sender<EngineAction>,
+pub async fn task_subscription_loop(
+    subs_tx: mpsc::Sender<EngineAction>,
+    prefix_id: String,
     mut eventloop: EventLoop,
-) -> task::JoinHandle<()> {
-    let subs_tx = tx.clone();
-    task::spawn(async move {
-        log::debug!("Started MQTT subscription...");
-        loop {
-            let event = eventloop.poll().await;
-            log::debug!("EventLoop Event -> {:?}", event);
-            match event {
-                Result::Ok(Event::Incoming(Packet::Publish(publish))) => {
-                    if let Err(error) = subs_tx.send(to_engineaction(publish)).await {
-                        log::warn!("Exited MQTT subscription with error {}", error);
-                        return;
-                    }
-                }
-                Result::Ok(_) => {}
-                Result::Err(ConnectionError::Cancel) => {
-                    log::debug!("Exited MQTT subscription...");
-                    return;
-                }
-                Result::Err(error) => {
-                    log::warn!("Exited MQTT subscription with error {}", error);
+) {
+    log::debug!("Starting MQTT subscription...");
+    loop {
+        let event = eventloop.poll().await;
+        log::trace!("EventLoop Event -> {:?}", event);
+        match event {
+            Result::Ok(Event::Incoming(Packet::Publish(publish))) => {
+                if let Err(error) = subs_tx.send(to_engineaction(publish)).await {
+                    log::warn!("Exiting MQTT subscription with publish error {}", error);
                     return;
                 }
             }
+            Result::Ok(_) => {}
+            Result::Err(ConnectionError::Cancel) => {
+                log::debug!("Exiting MQTT subscription...");
+                return;
+            }
+            Result::Err(error) => {
+                if let Err(senderror) = subs_tx
+                    .send(EngineAction::new(
+                        format!("{}/command/exit", prefix_id),
+                        error.to_string().into_bytes(),
+                    ))
+                    .await
+                {
+                    log::warn!("Cannot send exit with error message {}", senderror);
+                }
+                log::warn!("Exiting MQTT subscription with client error {}", error);
+                return;
+            }
         }
-    })
+    }
 }
 
 pub fn to_qos(num: i32) -> Option<QoS> {
@@ -134,38 +177,29 @@ pub fn from_qos(qos: QoS) -> i64 {
     }
 }
 
-pub fn task_publication_loop(
-    mut rx: mpsc::Receiver<EngineResult>,
-    client: AsyncClient,
-) -> task::JoinHandle<()> {
-    task::spawn(async move {
-        log::debug!("Started MQTT publication...");
-        while let Some(res) = rx.recv().await {
-            for elem in res.messages {
-                if let Err(error) = client
-                    .publish(
-                        elem.topic,
-                        elem.properties["qos"]
-                            .as_i64()
-                            .and_then(|i| to_qos(i as i32))
-                            .unwrap_or(QoS::AtLeastOnce),
-                        elem.properties["retain"].as_bool().unwrap_or(false),
-                        elem.payload,
-                    )
-                    .await
-                {
-                    log::warn!("Exited MQTT publication with error {}", error);
-                    return;
-                }
-            }
-
-            if res.is_final {
-                if let Err(error) = client.cancel().await {
-                    log::warn!("Exited MQTT publication with error {}", error);
-                    return;
-                }
+pub async fn task_publication_loop(mut rx: mpsc::Receiver<EngineResult>, client: AsyncClient) {
+    log::debug!("Starting MQTT publication...");
+    while let Some(res) = rx.recv().await {
+        for elem in res.messages {
+            if let Err(error) = client
+                .publish(
+                    elem.topic,
+                    elem.properties["qos"]
+                        .as_i64()
+                        .and_then(|i| to_qos(i as i32))
+                        .unwrap_or(QoS::AtLeastOnce),
+                    elem.properties["retain"].as_bool().unwrap_or(false),
+                    elem.payload,
+                )
+                .await
+            {
+                log::warn!("Exiting MQTT publication with error {}", error);
+                return;
             }
         }
-        log::debug!("Exited MQTT publication...");
-    })
+    }
+    if let Err(error) = client.cancel().await {
+        log::warn!("Exiting MQTT publication with error {}", error);
+    }
+    log::debug!("Exiting MQTT publication...");
 }
