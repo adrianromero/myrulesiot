@@ -20,4 +20,5 @@
 pub mod forward;
 pub mod lights;
 pub mod savelist;
+pub mod simpleactuator;
 pub mod zigbee;

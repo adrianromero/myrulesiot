@@ -38,7 +38,7 @@ impl EngineAction {
     pub fn matches(&self, filter: &str) -> bool {
         self.topic.eq(filter)
     }
-    pub fn matches_action(&self, filter: &str, payload: Vec<u8>) -> bool {
+    pub fn matches_action(&self, filter: &str, payload: &[u8]) -> bool {
         self.topic.eq(filter) && payload.eq(&self.payload)
     }
 }
