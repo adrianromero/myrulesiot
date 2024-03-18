@@ -17,10 +17,10 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use crate::mqtt::{self, EngineAction, EngineFunction, EngineResult, EngineState};
-use crate::rules::{forward, zigbee};
+use crate::mqtt::{self, EngineAction, EngineResult, EngineState};
+use crate::rules;
 use crate::runtime;
-use std::collections::HashMap;
+
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{Receiver, Sender};
 
@@ -57,25 +57,7 @@ impl RuntimeTester {
     }
 
     pub async fn runtime_loop(&mut self) {
-        let engine_functions: HashMap<String, EngineFunction> = HashMap::from([
-            (
-                String::from("ikea_actuator"),
-                zigbee::engine_ikea_actuator as EngineFunction,
-            ),
-            (
-                String::from("shelly_relay"),
-                zigbee::engine_shelly_relay as EngineFunction,
-            ),
-            (
-                String::from("forward_action"),
-                forward::engine_forward_action as EngineFunction,
-            ),
-            (
-                String::from("forward_user_action"),
-                forward::engine_forward_user_action as EngineFunction,
-            ),
-        ]);
-
+        let engine_functions = rules::default_engine_functions();
         runtime::task_runtime_loop(
             self.opt_pub_tx.as_ref().unwrap().clone(),
             self.opt_sub_rx.take().unwrap(),

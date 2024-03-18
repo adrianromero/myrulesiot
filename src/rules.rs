@@ -17,8 +17,49 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+use std::collections::HashMap;
+
+use crate::mqtt::EngineFunction;
+
+use self::ikea::IkeaRemote;
+
+pub mod actionactuator;
 pub mod forward;
+pub mod ikea;
 pub mod lights;
+pub mod relay;
 pub mod savelist;
-pub mod simpleactuator;
-pub mod zigbee;
+
+pub fn default_engine_functions() -> HashMap<String, EngineFunction> {
+    HashMap::from([
+        (
+            String::from("actuator_action"),
+            Box::new(actionactuator::actuator_action) as EngineFunction,
+        ),
+        (
+            String::from("actuator_json_action"),
+            Box::new(actionactuator::actuator_json_action),
+        ),
+        (
+            String::from("actuator_ikea_remote_toggle"),
+            ikea::actuator_ikea_remote(IkeaRemote::Toggle),
+        ),
+        (
+            String::from("actuator_ikea_remote_bright_down"),
+            ikea::actuator_ikea_remote(IkeaRemote::BrightDown),
+        ),
+        (
+            String::from("relay_on"),
+            Box::new(relay::relay_value(b"on")),
+        ),
+        (String::from("relay"), Box::new(relay::relay())),
+        (
+            String::from("forward_action"),
+            Box::new(forward::engine_forward_action),
+        ),
+        (
+            String::from("forward_user_action"),
+            Box::new(forward::engine_forward_user_action),
+        ),
+    ])
+}

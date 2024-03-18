@@ -27,14 +27,14 @@ async fn basic_messages() {
     // Push function
     testengine.send(EngineAction::new(
         "MYRULESTEST/command/functions_push".into(),
-        b"{\"name\":\"ikea_actuator\", \"parameters\": {\"topic\":\"zigbee2mqtt/Tradfri Remote\",\"command\":\"toggle\"}}".into()
+        b"{\"name\":\"actuator_ikea_remote_toggle\", \"parameters\": {\"topic\":\"zigbee2mqtt/Tradfri Remote\"}}".into()
     ))
     .await;
 
     testengine
     .send(EngineAction::new(
         "MYRULESTEST/command/functions_push".into(),
-        b"{\"name\":\"shelly_relay\", \"parameters\": {\"topic\":\"shellies/shellyswitch01/relay/1/command\"}}".into(),
+        b"{\"name\":\"relay_on\", \"parameters\": {\"topic\":\"shellies/shellyswitch01/relay/1/command\"}}".into(),
     ))
     .await;
 
@@ -53,13 +53,13 @@ async fn basic_messages() {
 
     // The function push result
     assert_eq!(
-        "EngineResult { messages: [EngineMessage { topic: \"MYRULESTEST/notify/functions_push\", payload: [123, 34, 102, 117, 110, 99, 116, 105, 111, 110, 34, 58, 34, 105, 107, 101, 97, 95, 97, 99, 116, 117, 97, 116, 111, 114, 34, 44, 34, 115, 117, 99, 99, 101, 115, 115, 34, 58, 116, 114, 117, 101, 125], properties: Null }], is_final: false }",
+        "EngineResult { messages: [EngineMessage { topic: \"MYRULESTEST/notify/functions_push\", payload: [123, 34, 102, 117, 110, 99, 116, 105, 111, 110, 34, 58, 34, 97, 99, 116, 117, 97, 116, 111, 114, 95, 105, 107, 101, 97, 95, 114, 101, 109, 111, 116, 101, 95, 116, 111, 103, 103, 108, 101, 34, 44, 34, 115, 117, 99, 99, 101, 115, 115, 34, 58, 116, 114, 117, 101, 125], properties: Null }], is_final: false }",
         format!("{:?}", testengine.recv().await.unwrap())
     );
 
     // The function push result
     assert_eq!(
-        "EngineResult { messages: [EngineMessage { topic: \"MYRULESTEST/notify/functions_push\", payload: [123, 34, 102, 117, 110, 99, 116, 105, 111, 110, 34, 58, 34, 115, 104, 101, 108, 108, 121, 95, 114, 101, 108, 97, 121, 34, 44, 34, 115, 117, 99, 99, 101, 115, 115, 34, 58, 116, 114, 117, 101, 125], properties: Null }], is_final: false }",
+        "EngineResult { messages: [EngineMessage { topic: \"MYRULESTEST/notify/functions_push\", payload: [123, 34, 102, 117, 110, 99, 116, 105, 111, 110, 34, 58, 34, 114, 101, 108, 97, 121, 95, 111, 110, 34, 44, 34, 115, 117, 99, 99, 101, 115, 115, 34, 58, 116, 114, 117, 101, 125], properties: Null }], is_final: false }",
         format!("{:?}", testengine.recv().await.unwrap())
     );
 
@@ -70,7 +70,7 @@ async fn basic_messages() {
     );
 
     assert_eq!(
-        "EngineResult { messages: [EngineMessage { topic: \"MYRULESTEST/notify/exit_functions\", payload: [91, 123, 34, 110, 97, 109, 101, 34, 58, 34, 105, 107, 101, 97, 95, 97, 99, 116, 117, 97, 116, 111, 114, 34, 44, 34, 112, 97, 114, 97, 109, 101, 116, 101, 114, 115, 34, 58, 123, 34, 99, 111, 109, 109, 97, 110, 100, 34, 58, 34, 116, 111, 103, 103, 108, 101, 34, 44, 34, 116, 111, 112, 105, 99, 34, 58, 34, 122, 105, 103, 98, 101, 101, 50, 109, 113, 116, 116, 47, 84, 114, 97, 100, 102, 114, 105, 32, 82, 101, 109, 111, 116, 101, 34, 125, 125, 44, 123, 34, 110, 97, 109, 101, 34, 58, 34, 115, 104, 101, 108, 108, 121, 95, 114, 101, 108, 97, 121, 34, 44, 34, 112, 97, 114, 97, 109, 101, 116, 101, 114, 115, 34, 58, 123, 34, 116, 111, 112, 105, 99, 34, 58, 34, 115, 104, 101, 108, 108, 105, 101, 115, 47, 115, 104, 101, 108, 108, 121, 115, 119, 105, 116, 99, 104, 48, 49, 47, 114, 101, 108, 97, 121, 47, 49, 47, 99, 111, 109, 109, 97, 110, 100, 34, 125, 125, 93], properties: Null }, EngineMessage { topic: \"MYRULESTEST/notify/exit\", payload: [123, 34, 115, 117, 99, 99, 101, 115, 115, 34, 58, 116, 114, 117, 101, 125], properties: Null }], is_final: true }",
+        "EngineResult { messages: [EngineMessage { topic: \"MYRULESTEST/notify/exit_functions\", payload: [91, 123, 34, 110, 97, 109, 101, 34, 58, 34, 97, 99, 116, 117, 97, 116, 111, 114, 95, 105, 107, 101, 97, 95, 114, 101, 109, 111, 116, 101, 95, 116, 111, 103, 103, 108, 101, 34, 44, 34, 112, 97, 114, 97, 109, 101, 116, 101, 114, 115, 34, 58, 123, 34, 116, 111, 112, 105, 99, 34, 58, 34, 122, 105, 103, 98, 101, 101, 50, 109, 113, 116, 116, 47, 84, 114, 97, 100, 102, 114, 105, 32, 82, 101, 109, 111, 116, 101, 34, 125, 125, 44, 123, 34, 110, 97, 109, 101, 34, 58, 34, 114, 101, 108, 97, 121, 95, 111, 110, 34, 44, 34, 112, 97, 114, 97, 109, 101, 116, 101, 114, 115, 34, 58, 123, 34, 116, 111, 112, 105, 99, 34, 58, 34, 115, 104, 101, 108, 108, 105, 101, 115, 47, 115, 104, 101, 108, 108, 121, 115, 119, 105, 116, 99, 104, 48, 49, 47, 114, 101, 108, 97, 121, 47, 49, 47, 99, 111, 109, 109, 97, 110, 100, 34, 125, 125, 93], properties: Null }, EngineMessage { topic: \"MYRULESTEST/notify/exit\", payload: [123, 34, 115, 117, 99, 99, 101, 115, 115, 34, 58, 116, 114, 117, 101, 125], properties: Null }], is_final: true }",
         format!("{:?}", testengine.recv().await.unwrap())
     );
 

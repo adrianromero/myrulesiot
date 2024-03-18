@@ -66,12 +66,15 @@ impl EngineState {
     }
 }
 
-pub type EngineFunction = fn(
-    loopstack: &mut serde_json::Value,
-    mapinfo: &mut serde_json::Value,
-    action: &EngineAction,
-    parameters: &serde_json::Value,
-) -> Vec<EngineMessage>;
+pub type EngineFunction = Box<
+    dyn Fn(
+            &mut serde_json::Value,
+            &mut serde_json::Value,
+            &EngineAction,
+            &serde_json::Value,
+        ) -> Vec<EngineMessage>
+        + Send,
+>;
 
 pub struct MasterEngine {
     prefix_id: String,
@@ -107,13 +110,16 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
                         }),
                     ));
                 }
-                Err(error) => messages.push(EngineMessage::new_json(
-                    format!("{}/notify/system_error", self.prefix_id),
-                    json!({
-                      "command" : "functions_push",
-                      "error" : format!("{}", error.to_string())
-                    }),
-                )),
+                Err(error) => {
+                    log::warn!("functions_push: Not a reducer function.");
+                    messages.push(EngineMessage::new_json(
+                        format!("{}/notify/system_error", self.prefix_id),
+                        json!({
+                          "command" : "functions_push",
+                          "error" : format!("{}", error.to_string())
+                        }),
+                    ))
+                }
             }
         } else if action.matches(&format!("{}/command/functions_pop", self.prefix_id)) {
             functions.pop();
@@ -169,10 +175,13 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
                     Some(f) => {
                         messages.append(&mut f(&mut loopstack, &mut info, &action, &fun.parameters))
                     }
-                    None => messages.push(EngineMessage::new(
-                        format!("{}/notify/system_error", self.prefix_id),
-                        format!("Function not found: {}", &fun.name).into(),
-                    )),
+                    None => {
+                        log::warn!("Function not found: {}", fun.name);
+                        messages.push(EngineMessage::new(
+                            format!("{}/notify/system_error", self.prefix_id),
+                            format!("Function not found: {}", &fun.name).into(),
+                        ))
+                    }
                 }
             }
         }
