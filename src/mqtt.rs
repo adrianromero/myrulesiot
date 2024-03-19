@@ -27,7 +27,7 @@ mod enginecommon;
 pub use enginecommon::{EngineAction, EngineMessage, EngineResult};
 
 mod masterengine;
-pub use masterengine::{EngineFunction, EngineState, MasterEngine, ReducerFunction};
+pub use masterengine::{EngineState, MasterEngine, ReducerFunction, SliceFunction, SliceResult};
 
 mod filestate;
 pub use filestate::{task_load_functions_loop, task_save_functions_loop};

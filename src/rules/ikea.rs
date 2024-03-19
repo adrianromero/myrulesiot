@@ -20,7 +20,7 @@
 use serde_json::json;
 
 use super::actionactuator::imp_actuator_json_action;
-use crate::mqtt::{EngineAction, EngineFunction};
+use crate::mqtt::{EngineAction, SliceFunction};
 pub enum IkeaRemote {
     Toggle,
     BrightUp,
@@ -29,15 +29,12 @@ pub enum IkeaRemote {
     ArrowDown,
 }
 
-pub fn actuator_ikea_remote(command: IkeaRemote) -> EngineFunction {
+pub fn actuator_ikea_remote(command: IkeaRemote) -> SliceFunction {
     Box::new(
-        move |loopstack: &mut serde_json::Value,
-              _mapinfo: &mut serde_json::Value,
-              action: &EngineAction,
-              params: &serde_json::Value| {
+        move |params: &serde_json::Value, info: &serde_json::Value, action: &EngineAction| {
             let topic = params["topic"].as_str().unwrap();
             imp_actuator_json_action(
-                loopstack,
+                info,
                 action,
                 topic,
                 "/action",

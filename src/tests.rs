@@ -18,6 +18,7 @@
 //
 
 mod ikeaactuator;
+mod jsontests;
 mod masterintegration;
 
 mod runtimetester;

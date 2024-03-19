@@ -20,73 +20,52 @@
 use serde_json::json;
 use serde_json::Value;
 
+use crate::mqtt::SliceFunction;
+use crate::mqtt::SliceResult;
 use crate::mqtt::{EngineAction, EngineMessage};
 
-// #[derive(Serialize, Deserialize)]
-// struct ForwardUserActionParam {
-//     topic: String,
-//     forwardtopic: String,
-// }
-
-pub fn engine_forward_user_action(
-    loopstack: &mut serde_json::Value,
-    mapinfo: &mut serde_json::Value,
-    action: &EngineAction,
-    params: &serde_json::Value,
-) -> Vec<EngineMessage> {
-    let topic = params["topic"].as_str().unwrap();
-    let forwardtopic = params["forwardtopic"].as_str().unwrap();
-    forward_user_action(loopstack, mapinfo, action, topic, forwardtopic)
+pub fn forward_user_action() -> SliceFunction {
+    Box::new(
+        |params: &Value, _info: &Value, action: &EngineAction| -> SliceResult {
+            let topic = params["topic"].as_str().unwrap();
+            let forwardtopic = params["forwardtopic"].as_str().unwrap();
+            if action.matches(topic) {
+                return SliceResult::messages(vec![EngineMessage::new(
+                    String::from(forwardtopic),
+                    action.payload.clone(),
+                )]);
+            }
+            SliceResult::empty()
+        },
+    )
 }
 
-fn forward_user_action(
-    _loopstack: &mut serde_json::Value,
-    _info: &mut serde_json::Value,
-    action: &EngineAction,
-    topic: &str,
-    forwardtopic: &str,
-) -> Vec<EngineMessage> {
-    if action.matches(topic) {
-        return vec![EngineMessage::new(
-            String::from(forwardtopic),
-            action.payload.clone(),
-        )];
-    }
-    vec![]
-}
-
-pub fn engine_forward_action(
-    loopstack: &mut serde_json::Value,
-    mapinfo: &mut serde_json::Value,
-    action: &EngineAction,
-    params: &serde_json::Value,
-) -> Vec<EngineMessage> {
-    let topic = params["topic"].as_str().unwrap();
-    let forwardtopic = params["forwardtopic"].as_str().unwrap();
-    forward_action(loopstack, mapinfo, action, topic, forwardtopic)
-}
-
-fn forward_action(
-    _loopstack: &mut serde_json::Value,
-    mapinfo: &mut serde_json::Value,
-    action: &EngineAction,
-    topic: &str,
-    forwardtopic: &str,
-) -> Vec<EngineMessage> {
-    if action.matches(topic) {
-        let json_payload: Value = serde_json::from_slice(&action.payload).unwrap_or(json!(null));
-        if json_payload["action"] == json!("toggle") {
-            let status = mapinfo[forwardtopic].as_bool();
-            let newvalue: bool = match status {
-                None => true,
-                Some(st) => !st,
-            };
-            mapinfo[forwardtopic] = json!(newvalue);
-            return vec![EngineMessage::new(
-                String::from(forwardtopic),
-                if newvalue { vec![1] } else { vec![0] },
-            )];
-        }
-    }
-    return vec![];
+pub fn forward_action() -> SliceFunction {
+    Box::new(
+        |params: &serde_json::Value, info: &Value, action: &EngineAction| -> SliceResult {
+            let topic = params["topic"].as_str().unwrap();
+            let forwardtopic = params["forwardtopic"].as_str().unwrap();
+            if action.matches(topic) {
+                let json_payload: Value =
+                    serde_json::from_slice(&action.payload).unwrap_or(json!(null));
+                if json_payload["action"] == json!("toggle") {
+                    let status = info[forwardtopic].as_bool();
+                    let newvalue: bool = match status {
+                        None => true,
+                        Some(st) => !st,
+                    };
+                    return SliceResult::new(
+                        json!({
+                            forwardtopic : newvalue
+                        }),
+                        vec![EngineMessage::new(
+                            String::from(forwardtopic),
+                            if newvalue { vec![1] } else { vec![0] },
+                        )],
+                    );
+                }
+            }
+            SliceResult::empty()
+        },
+    )
 }

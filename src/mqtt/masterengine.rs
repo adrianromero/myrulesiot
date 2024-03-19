@@ -21,24 +21,25 @@ use super::{EngineAction, EngineMessage, EngineResult};
 use crate::runtime::Engine;
 
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReducerFunction {
     name: String,
-    parameters: serde_json::Value,
+    #[serde(flatten)]
+    parameters: Value,
 }
 
 impl ReducerFunction {
-    pub fn new(name: String, parameters: serde_json::Value) -> Self {
+    pub fn new(name: String, parameters: Value) -> Self {
         ReducerFunction { name, parameters }
     }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct EngineState {
-    pub info: serde_json::Value,
+    pub info: Value,
     pub functions: Vec<ReducerFunction>,
     pub messages: Vec<EngineMessage>,
     pub is_final: bool,
@@ -56,7 +57,7 @@ impl Default for EngineState {
 }
 
 impl EngineState {
-    pub fn new(info: serde_json::Value, functions: Vec<ReducerFunction>) -> Self {
+    pub fn new(info: Value, functions: Vec<ReducerFunction>) -> Self {
         EngineState {
             info,
             functions,
@@ -66,23 +67,44 @@ impl EngineState {
     }
 }
 
-pub type EngineFunction = Box<
-    dyn Fn(
-            &mut serde_json::Value,
-            &mut serde_json::Value,
-            &EngineAction,
-            &serde_json::Value,
-        ) -> Vec<EngineMessage>
-        + Send,
->;
+pub struct SliceResult {
+    state: Value,
+    messages: Vec<EngineMessage>,
+}
+
+impl SliceResult {
+    pub fn empty() -> Self {
+        SliceResult {
+            state: json!({}),
+            messages: vec![],
+        }
+    }
+    pub fn messages(messages: Vec<EngineMessage>) -> Self {
+        SliceResult {
+            state: json!({}),
+            messages,
+        }
+    }
+    pub fn state(state: Value) -> Self {
+        SliceResult {
+            state,
+            messages: vec![],
+        }
+    }
+    pub fn new(state: Value, messages: Vec<EngineMessage>) -> Self {
+        SliceResult { state, messages }
+    }
+}
+
+pub type SliceFunction = Box<dyn Fn(&Value, &Value, &EngineAction) -> SliceResult + Send>;
 
 pub struct MasterEngine {
     prefix_id: String,
-    engine_functions: HashMap<String, EngineFunction>,
+    engine_functions: HashMap<String, SliceFunction>,
 }
 
 impl MasterEngine {
-    pub fn new(prefix_id: String, engine_functions: HashMap<String, EngineFunction>) -> Self {
+    pub fn new(prefix_id: String, engine_functions: HashMap<String, SliceFunction>) -> Self {
         Self {
             prefix_id,
             engine_functions,
@@ -111,7 +133,7 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
                     ));
                 }
                 Err(error) => {
-                    log::warn!("functions_push: Not a reducer function.");
+                    log::warn!("functions_push: Not a ReducerFunction.");
                     messages.push(EngineMessage::new_json(
                         format!("{}/notify/system_error", self.prefix_id),
                         json!({
@@ -148,13 +170,16 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
                         }),
                     ));
                 }
-                Err(error) => messages.push(EngineMessage::new_json(
-                    format!("{}/notify/system_error", self.prefix_id),
-                    json!({
-                      "command" : "functions_putall",
-                      "error" : format!("{}", error.to_string())
-                    }),
-                )),
+                Err(error) => {
+                    log::warn!("functions_putall: Not a list of ReducerFunction.");
+                    messages.push(EngineMessage::new_json(
+                        format!("{}/notify/system_error", self.prefix_id),
+                        json!({
+                          "command" : "functions_putall",
+                          "error" : format!("{}", error.to_string())
+                        }),
+                    ))
+                }
             }
         } else if action.matches(&format!("{}/command/functions_getall", self.prefix_id)) {
             messages.push(EngineMessage::new_json(
@@ -166,14 +191,20 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
         } else if action.matches(&format!("{}/command/exit", self.prefix_id)) {
             is_final = true;
         } else {
-            let mut loopstack = json!({});
             log::debug!("executing {} functions)", functions.len());
-            for fun in &functions {
-                log::debug!("executing {}({})", fun.name, fun.parameters);
+            for (i, fun) in functions.iter().enumerate() {
+                log::debug!("executing {}-{}({})", i, fun.name, fun.parameters);
+
+                if let Value::Object(obj) = &mut info {
+                    obj.insert("_index".into(), json!(i));
+                }
+
                 let func = self.engine_functions.get(&fun.name);
                 match func {
                     Some(f) => {
-                        messages.append(&mut f(&mut loopstack, &mut info, &action, &fun.parameters))
+                        let mut result = f(&fun.parameters, &mut info, &action);
+                        json_patch::merge(&mut info, &result.state);
+                        messages.append(&mut result.messages);
                     }
                     None => {
                         log::warn!("Function not found: {}", fun.name);
@@ -183,6 +214,10 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
                         ))
                     }
                 }
+            }
+            // Removes all non persitable keys
+            if let Value::Object(obj) = &mut info {
+                obj.retain(|k: &String, _v: &mut Value| !k.starts_with("_"));
             }
         }
 

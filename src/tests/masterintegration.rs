@@ -1,5 +1,5 @@
 //    MyRulesIoT  Project is a rules engine for MQTT based on MyRulesIoT lib
-//    Copyright (C) 2022-2024my  Adrián Romero Corchado.
+//    Copyright (C) 2022-2023  Adrián Romero Corchado.
 //
 //    This file is part of MyRulesIoT.
 //

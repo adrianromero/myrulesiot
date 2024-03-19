@@ -17,45 +17,31 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use serde_json::json;
+use serde_json::{json, Value};
 
-use crate::mqtt::{EngineAction, EngineFunction, EngineMessage};
+use crate::mqtt::{EngineAction, EngineMessage, SliceFunction, SliceResult};
 
-pub fn relay() -> EngineFunction {
-    Box::new(
-        |loopstack: &mut serde_json::Value,
-         mapinfo: &mut serde_json::Value,
-         action: &EngineAction,
-         params: &serde_json::Value| {
-            let topic = params["topic"].as_str().unwrap();
-            let value = params["value"].as_str().unwrap().as_bytes();
-            imp_relay(loopstack, mapinfo, action, topic, value)
-        },
-    )
+pub fn relay() -> SliceFunction {
+    Box::new(|params: &Value, mapinfo: &Value, _action: &EngineAction| {
+        let topic = params["topic"].as_str().unwrap();
+        let value = params["value"].as_str().unwrap().as_bytes();
+        imp_relay(mapinfo, topic, value)
+    })
 }
 
-pub fn relay_value(value: &[u8]) -> EngineFunction {
+pub fn relay_value(value: &[u8]) -> SliceFunction {
     let value: Vec<u8> = value.into();
     Box::new(
-        move |loopstack: &mut serde_json::Value,
-              mapinfo: &mut serde_json::Value,
-              action: &EngineAction,
-              params: &serde_json::Value| {
+        move |params: &Value, mapinfo: &Value, _action: &EngineAction| {
             let topic = params["topic"].as_str().unwrap();
-            imp_relay(loopstack, mapinfo, action, topic, &value)
+            imp_relay(mapinfo, topic, &value)
         },
     )
 }
 
-fn imp_relay(
-    loopstack: &mut serde_json::Value,
-    _mapinfo: &mut serde_json::Value,
-    _action: &EngineAction,
-    topic: &str,
-    value: &[u8],
-) -> Vec<EngineMessage> {
-    if loopstack["actuator"] == json!(true) {
-        return vec![EngineMessage::new(String::from(topic), value.into())];
+fn imp_relay(mapinfo: &serde_json::Value, topic: &str, value: &[u8]) -> SliceResult {
+    if mapinfo["_actuator"] == json!(true) {
+        return SliceResult::messages(vec![EngineMessage::new(String::from(topic), value.into())]);
     }
-    vec![]
+    SliceResult::empty()
 }
