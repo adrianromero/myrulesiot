@@ -122,17 +122,17 @@ pub async fn new_connection(
     Ok((client, eventloop))
 }
 
-pub async fn task_subscription_loop(
-    subs_tx: mpsc::Sender<EngineAction>,
-    prefix_id: String,
-    mut eventloop: EventLoop,
-) {
+pub async fn task_subscription_loop(subs_tx: mpsc::Sender<EngineAction>, mut eventloop: EventLoop) {
     log::debug!("Starting MQTT subscription...");
     loop {
         let event = eventloop.poll().await;
         log::trace!("EventLoop Event -> {:?}", event);
         match event {
             Result::Ok(Event::Incoming(Packet::Publish(publish))) => {
+                if publish.topic.starts_with("SYSMR/") {
+                    // Filter SYSMR/ topics
+                    return;
+                }
                 if let Err(error) = subs_tx.send(to_engineaction(publish)).await {
                     log::warn!("Exiting MQTT subscription with publish error {}", error);
                     return;
@@ -146,7 +146,7 @@ pub async fn task_subscription_loop(
             Result::Err(error) => {
                 if let Err(senderror) = subs_tx
                     .send(EngineAction::new(
-                        format!("{}/command/exit", prefix_id),
+                        "SYSMR/action/error".into(),
                         error.to_string().into_bytes(),
                     ))
                     .await
@@ -181,6 +181,10 @@ pub async fn task_publication_loop(mut rx: mpsc::Receiver<EngineResult>, client:
     log::debug!("Starting MQTT publication...");
     while let Some(res) = rx.recv().await {
         for elem in res.messages {
+            if elem.topic.starts_with("SYSMR/") {
+                // Filter SYSMR/ topics
+                continue;
+            }
             if let Err(error) = client
                 .publish(
                     elem.topic,

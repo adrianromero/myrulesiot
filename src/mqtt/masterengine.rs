@@ -96,7 +96,7 @@ impl SliceResult {
     }
 }
 
-pub type SliceFunction = Box<dyn Fn(&Value, &Value, &EngineAction) -> SliceResult + Send>;
+pub type SliceFunction = Box<dyn Fn(&Value, &EngineAction) -> SliceResult + Send>;
 
 pub struct MasterEngine {
     prefix_id: String,
@@ -190,8 +190,27 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
             messages = state.messages;
         } else if action.matches(&format!("{}/command/exit", self.prefix_id)) {
             is_final = true;
+        } else if action.matches("SYSMR/action/error") {
+            log::error!(
+                "System Master Engine error. Received error {:?}",
+                String::from_utf8(action.payload)
+            );
+            is_final = true;
+        } else if action.matches("SYSMR/action/load_functions") {
+            match serde_json::from_slice(&action.payload) {
+                Ok(fns) => {
+                    functions = fns;
+                }
+                Err(error) => {
+                    log::error!("System Master Engine error. Not a list of ReducerFunction in load_functions. {}", error);
+                }
+            }
         } else {
             log::debug!("executing {} functions)", functions.len());
+            if let Value::Object(obj) = &mut info {
+                let utc = chrono::Utc::now().timestamp_millis();
+                obj.insert("_timestamp".into(), json!(utc));
+            }
             for (i, fun) in functions.iter().enumerate() {
                 log::debug!("executing {}-{}({})", i, fun.name, fun.parameters);
 
@@ -202,7 +221,8 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
                 let func = self.engine_functions.get(&fun.name);
                 match func {
                     Some(f) => {
-                        let mut result = f(&fun.parameters, &mut info, &action);
+                        json_patch::merge(&mut info, &fun.parameters);
+                        let mut result = f(&mut info, &action);
                         json_patch::merge(&mut info, &result.state);
                         messages.append(&mut result.messages);
                     }
@@ -223,7 +243,7 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
 
         if is_final {
             messages.push(EngineMessage::new_json(
-                format!("{}/notify/exit_functions", self.prefix_id),
+                "SYSMR/notify/save_functions".into(),
                 serde_json::to_value(&functions).unwrap(),
             ));
             messages.push(EngineMessage::new_json(

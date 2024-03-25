@@ -24,16 +24,11 @@ use serde_json::Value;
 pub struct EngineAction {
     pub topic: String,
     pub payload: Vec<u8>,
-    pub timestamp: i64,
 }
 
 impl EngineAction {
     pub fn new(topic: String, payload: Vec<u8>) -> Self {
-        EngineAction {
-            topic,
-            payload,
-            timestamp: chrono::Local::now().timestamp_millis(),
-        }
+        EngineAction { topic, payload }
     }
     pub fn matches(&self, filter: &str) -> bool {
         self.topic.eq(filter)

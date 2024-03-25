@@ -39,6 +39,7 @@ fn basic_messages() {
 
     assert_eq!(info, expected_info);
 }
+
 #[test]
 fn merge_messages() {
     let mut info = json!({
@@ -62,4 +63,34 @@ fn merge_messages() {
     json_patch::merge(&mut info, &result);
 
     assert_eq!(info, expected_result);
+}
+
+#[test]
+fn serialize_vec() {
+    //Vec<Option<Vec<u8>>>,
+    let info = json!({
+        "key1": vec![1, 2, 4, 5, 6],
+    });
+
+    assert_eq!("{\"key1\":[1,2,4,5,6]}", info.to_string());
+
+    let saved: Vec<Option<Vec<u8>>> = vec![Some(vec![1, 2, 3]), Some(vec![4, 5, 6]), None];
+    let info = json!({
+        "key1": saved,
+        "_key3":null,
+        "key5": true,
+    });
+    assert_eq!(
+        "{\"_key3\":null,\"key1\":[[1,2,3],[4,5,6],null],\"key5\":true}",
+        info.to_string()
+    );
+}
+
+#[test]
+fn deserialize_vec() {
+    let info = serde_json::from_str::<Vec<u8>>("[1,2,4,5,6]").unwrap();
+    assert_eq!(vec![1, 2, 4, 5, 6], info);
+
+    let info = serde_json::from_str::<Vec<Option<Vec<u8>>>>("[[1,2,3],[4,5,6],null]").unwrap();
+    assert_eq!(vec![Some(vec![1, 2, 3]), Some(vec![4, 5, 6]), None], info);
 }

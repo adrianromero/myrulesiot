@@ -22,30 +22,29 @@ use serde_json::{json, Value};
 use crate::mqtt::{EngineAction, SliceFunction, SliceResult};
 
 pub fn condition_sleep() -> SliceFunction {
-    Box::new(
-        |params: &Value, info: &Value, action: &EngineAction| -> SliceResult {
-            let millis = params["millis"].as_i64().unwrap_or(1000);
-            let timeindex = &format!("condition_sleep_{}", info["_index"]);
+    Box::new(|info: &Value, _action: &EngineAction| -> SliceResult {
+        let millis = info["_millis"].as_i64().unwrap_or(1000);
+        let timeindex = &format!("condition_sleep_{}", info["_index"]);
+        let timestamp = info["_timestamp"].as_i64().unwrap();
 
-            if info["_actuator"] == json!(true) {
+        if info["_start"] == json!(true) {
+            return SliceResult::state(json!({
+                timeindex: timestamp,
+                "_start" : null
+            }));
+        }
+
+        if let Some(activation) = &info[timeindex].as_i64() {
+            if timestamp - activation > millis {
                 return SliceResult::state(json!({
-                    timeindex: action.timestamp,
-                    "_actuator" : null
+                    timeindex : null,
+                    "_start" : true
                 }));
             }
+        }
 
-            if let Some(activation) = &info[timeindex].as_i64() {
-                if action.timestamp - activation > millis {
-                    return SliceResult::state(json!({
-                        timeindex : null,
-                        "_actuator" : true
-                    }));
-                }
-            }
-
-            return SliceResult::state(json!({
-                "_actuator": null
-            }));
-        },
-    )
+        return SliceResult::state(json!({
+            "_start": null
+        }));
+    })
 }

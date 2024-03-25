@@ -22,25 +22,23 @@ use serde_json::{json, Value};
 use crate::mqtt::{EngineAction, EngineMessage, SliceFunction, SliceResult};
 
 pub fn relay() -> SliceFunction {
-    Box::new(|params: &Value, mapinfo: &Value, _action: &EngineAction| {
-        let topic = params["topic"].as_str().unwrap();
-        let value = params["value"].as_str().unwrap().as_bytes();
-        imp_relay(mapinfo, topic, value)
+    Box::new(|info: &Value, _action: &EngineAction| {
+        let topic = info["_topic"].as_str().unwrap();
+        let value = info["_value"].as_str().unwrap().as_bytes();
+        imp_relay(info, topic, value)
     })
 }
 
 pub fn relay_value(value: &[u8]) -> SliceFunction {
     let value: Vec<u8> = value.into();
-    Box::new(
-        move |params: &Value, mapinfo: &Value, _action: &EngineAction| {
-            let topic = params["topic"].as_str().unwrap();
-            imp_relay(mapinfo, topic, &value)
-        },
-    )
+    Box::new(move |info: &Value, _action: &EngineAction| {
+        let topic = info["_topic"].as_str().unwrap();
+        imp_relay(info, topic, &value)
+    })
 }
 
 fn imp_relay(mapinfo: &serde_json::Value, topic: &str, value: &[u8]) -> SliceResult {
-    if mapinfo["_actuator"] == json!(true) {
+    if mapinfo["_start"] == json!(true) {
         return SliceResult::messages(vec![EngineMessage::new(String::from(topic), value.into())]);
     }
     SliceResult::empty()

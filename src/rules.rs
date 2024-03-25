@@ -23,23 +23,19 @@ use crate::mqtt::SliceFunction;
 
 use self::ikea::IkeaRemote;
 
-pub mod actionactuator;
 pub mod forward;
 pub mod ikea;
-pub mod lights;
 pub mod relay;
 pub mod savelist;
+pub mod startaction;
 pub mod timing;
 
 pub fn default_engine_functions() -> HashMap<String, SliceFunction> {
     HashMap::from([
-        (
-            String::from("actuator_action"),
-            actionactuator::actuator_action(),
-        ),
+        (String::from("start_action"), startaction::start_action()),
         (
             String::from("actuator_json_action"),
-            actionactuator::actuator_json_action(),
+            startaction::actuator_json_action(),
         ),
         (
             String::from("actuator_ikea_remote_toggle"),

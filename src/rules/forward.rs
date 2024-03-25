@@ -25,47 +25,43 @@ use crate::mqtt::SliceResult;
 use crate::mqtt::{EngineAction, EngineMessage};
 
 pub fn forward_user_action() -> SliceFunction {
-    Box::new(
-        |params: &Value, _info: &Value, action: &EngineAction| -> SliceResult {
-            let topic = params["topic"].as_str().unwrap();
-            let forwardtopic = params["forwardtopic"].as_str().unwrap();
-            if action.matches(topic) {
-                return SliceResult::messages(vec![EngineMessage::new(
-                    String::from(forwardtopic),
-                    action.payload.clone(),
-                )]);
-            }
-            SliceResult::empty()
-        },
-    )
+    Box::new(|info: &Value, action: &EngineAction| -> SliceResult {
+        let topic = info["_topic"].as_str().unwrap();
+        let forwardtopic = info["_forwardtopic"].as_str().unwrap();
+        if action.matches(topic) {
+            return SliceResult::messages(vec![EngineMessage::new(
+                String::from(forwardtopic),
+                action.payload.clone(),
+            )]);
+        }
+        SliceResult::empty()
+    })
 }
 
 pub fn forward_action() -> SliceFunction {
-    Box::new(
-        |params: &serde_json::Value, info: &Value, action: &EngineAction| -> SliceResult {
-            let topic = params["topic"].as_str().unwrap();
-            let forwardtopic = params["forwardtopic"].as_str().unwrap();
-            if action.matches(topic) {
-                let json_payload: Value =
-                    serde_json::from_slice(&action.payload).unwrap_or(json!(null));
-                if json_payload["action"] == json!("toggle") {
-                    let status = info[forwardtopic].as_bool();
-                    let newvalue: bool = match status {
-                        None => true,
-                        Some(st) => !st,
-                    };
-                    return SliceResult::new(
-                        json!({
-                            forwardtopic : newvalue
-                        }),
-                        vec![EngineMessage::new(
-                            String::from(forwardtopic),
-                            if newvalue { vec![1] } else { vec![0] },
-                        )],
-                    );
-                }
+    Box::new(|info: &Value, action: &EngineAction| -> SliceResult {
+        let topic = info["_topic"].as_str().unwrap();
+        let forwardtopic = info["_forwardtopic"].as_str().unwrap();
+        if action.matches(topic) {
+            let json_payload: Value =
+                serde_json::from_slice(&action.payload).unwrap_or(json!(null));
+            if json_payload["action"] == json!("toggle") {
+                let status = info[forwardtopic].as_bool();
+                let newvalue: bool = match status {
+                    None => true,
+                    Some(st) => !st,
+                };
+                return SliceResult::new(
+                    json!({
+                        forwardtopic : newvalue
+                    }),
+                    vec![EngineMessage::new(
+                        String::from(forwardtopic),
+                        if newvalue { vec![1] } else { vec![0] },
+                    )],
+                );
             }
-            SliceResult::empty()
-        },
-    )
+        }
+        SliceResult::empty()
+    })
 }

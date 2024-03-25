@@ -28,13 +28,11 @@ pub async fn task_timer_loop(tx: mpsc::Sender<EngineAction>, duration: chrono::D
     log::debug!("Starting user action tick subscription...");
     loop {
         time::sleep(time_duration).await;
-        let localtime = chrono::Local::now();
         if tx
-            .send(EngineAction {
-                topic: "SYSMR/user_action/tick".to_string(),
-                payload: localtime.to_rfc3339().into_bytes(),
-                timestamp: localtime.timestamp_millis(),
-            })
+            .send(EngineAction::new(
+                "SYSMR/action/tick".to_string(),
+                chrono::Local::now().to_rfc3339().into_bytes(),
+            ))
             .await
             .is_err()
         {

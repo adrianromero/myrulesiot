@@ -21,15 +21,11 @@ use tokio::sync::mpsc;
 
 use super::{EngineAction, EngineResult};
 
-pub async fn task_load_functions_loop(
-    tx: mpsc::Sender<EngineAction>,
-    prefix_id: String,
-    functions: Vec<u8>,
-) {
+pub async fn task_load_functions_loop(tx: mpsc::Sender<EngineAction>, functions: Vec<u8>) {
     log::debug!("Starting file functions load...");
 
     tx.send(EngineAction::new(
-        format!("{}/command/functions_putall", prefix_id),
+        "SYSMR/action/load_functions".into(),
         functions,
     ))
     .await
@@ -38,18 +34,12 @@ pub async fn task_load_functions_loop(
     log::debug!("Exiting file functions load...");
 }
 
-pub async fn task_save_functions_loop(
-    mut rx: mpsc::Receiver<EngineResult>,
-    prefix_id: String,
-) -> Option<Vec<u8>> {
+pub async fn task_save_functions_loop(mut rx: mpsc::Receiver<EngineResult>) -> Option<Vec<u8>> {
     let mut functions: Option<Vec<u8>> = None;
     log::debug!("Starting file functions save...");
     while let Some(res) = rx.recv().await {
         for elem in res.messages.into_iter() {
-            if elem
-                .topic
-                .eq(&format!("{}/notify/exit_functions", &prefix_id))
-            {
+            if elem.topic.eq("SYSMR/notify/save_functions") {
                 functions = Some(elem.payload);
             }
         }
