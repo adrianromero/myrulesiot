@@ -17,8 +17,10 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+use serde_json::{json, Value};
+
 use super::runtimetester::RuntimeTester;
-use crate::mqtt::EngineAction;
+use crate::master::EngineAction;
 
 #[tokio::test]
 async fn basic_messages() {
@@ -28,7 +30,7 @@ async fn basic_messages() {
     testengine
         .send(EngineAction::new(
             "MYRULESTEST/command/functions_push".into(),
-            b"{\"name\":\"actuator_ikea_remote_toggle\", \"_topic\":\"zigbee2mqtt/Tradfri Remote\"}"
+            b"{\"name\":\"start_ikea_remote_toggle\", \"_topic\":\"zigbee2mqtt/Tradfri Remote\"}"
                 .into(),
         ))
         .await;
@@ -55,10 +57,16 @@ async fn basic_messages() {
     testengine.runtime_loop().await;
 
     // The function push result
+    let t = testengine.recv().await.unwrap();
+    assert_eq!(&t.messages[0].topic, "MYRULESTEST/notify/functions_push");
     assert_eq!(
-        "EngineResult { messages: [EngineMessage { topic: \"MYRULESTEST/notify/functions_push\", payload: [123, 34, 102, 117, 110, 99, 116, 105, 111, 110, 34, 58, 34, 97, 99, 116, 117, 97, 116, 111, 114, 95, 105, 107, 101, 97, 95, 114, 101, 109, 111, 116, 101, 95, 116, 111, 103, 103, 108, 101, 34, 44, 34, 115, 117, 99, 99, 101, 115, 115, 34, 58, 116, 114, 117, 101, 125], properties: Null }], is_final: false }",
-        format!("{:?}", testengine.recv().await.unwrap())
+        json!({
+            "function" : "start_ikea_remote_toggle",
+            "success" : true
+        }),
+        serde_json::from_slice::<Value>(&t.messages[0].payload).unwrap()
     );
+    assert!(!t.is_final);
 
     // The function push result
     assert_eq!(
@@ -72,10 +80,20 @@ async fn basic_messages() {
         format!("{:?}", testengine.recv().await.unwrap())
     );
 
+    // The function push result
+    let t = testengine.recv().await.unwrap();
+    assert_eq!(&t.messages[0].topic, "SYSMR/notify/save_functions");
     assert_eq!(
-        "EngineResult { messages: [EngineMessage { topic: \"SYSMR/notify/save_functions\", payload: [91, 123, 34, 95, 116, 111, 112, 105, 99, 34, 58, 34, 122, 105, 103, 98, 101, 101, 50, 109, 113, 116, 116, 47, 84, 114, 97, 100, 102, 114, 105, 32, 82, 101, 109, 111, 116, 101, 34, 44, 34, 110, 97, 109, 101, 34, 58, 34, 97, 99, 116, 117, 97, 116, 111, 114, 95, 105, 107, 101, 97, 95, 114, 101, 109, 111, 116, 101, 95, 116, 111, 103, 103, 108, 101, 34, 125, 44, 123, 34, 95, 116, 111, 112, 105, 99, 34, 58, 34, 115, 104, 101, 108, 108, 105, 101, 115, 47, 115, 104, 101, 108, 108, 121, 115, 119, 105, 116, 99, 104, 48, 49, 47, 114, 101, 108, 97, 121, 47, 49, 47, 99, 111, 109, 109, 97, 110, 100, 34, 44, 34, 110, 97, 109, 101, 34, 58, 34, 114, 101, 108, 97, 121, 95, 111, 110, 34, 125, 93], properties: Null }, EngineMessage { topic: \"MYRULESTEST/notify/exit\", payload: [123, 34, 115, 117, 99, 99, 101, 115, 115, 34, 58, 116, 114, 117, 101, 125], properties: Null }], is_final: true }",
-        format!("{:?}", testengine.recv().await.unwrap())
+        json!([{
+            "_topic": "zigbee2mqtt/Tradfri Remote",
+            "name": "start_ikea_remote_toggle"
+        }, {
+            "_topic": "shellies/shellyswitch01/relay/1/command",
+            "name":"relay_on"
+        }]),
+        t.messages[0].payload_into_json().unwrap()
     );
+    assert!(t.is_final);
 
     assert!(testengine.recv().await.is_none());
 }

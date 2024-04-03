@@ -19,7 +19,7 @@
 
 use serde_json::{json, Value};
 
-use crate::mqtt::{EngineAction, SliceFunction, SliceResult};
+use crate::master::{EngineAction, SliceFunction, SliceResult};
 
 pub fn condition_sleep() -> SliceFunction {
     Box::new(|info: &Value, _action: &EngineAction| -> SliceResult {

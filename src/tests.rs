@@ -17,8 +17,9 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-mod ikeaactuator;
+mod ikea;
 mod jsontests;
 mod masterintegration;
+mod savelist;
 
 mod runtimetester;

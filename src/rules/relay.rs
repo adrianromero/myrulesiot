@@ -19,7 +19,7 @@
 
 use serde_json::{json, Value};
 
-use crate::mqtt::{EngineAction, EngineMessage, SliceFunction, SliceResult};
+use crate::master::{EngineAction, EngineMessage, SliceFunction, SliceResult};
 
 pub fn relay() -> SliceFunction {
     Box::new(|info: &Value, _action: &EngineAction| {

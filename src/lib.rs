@@ -18,6 +18,7 @@
 //
 
 pub mod devices;
+pub mod master;
 pub mod mqtt;
 pub mod rules;
 pub mod runtime;

@@ -20,9 +20,9 @@
 use serde_json::json;
 use serde_json::Value;
 
-use crate::mqtt::SliceFunction;
-use crate::mqtt::SliceResult;
-use crate::mqtt::{EngineAction, EngineMessage};
+use crate::master::SliceFunction;
+use crate::master::SliceResult;
+use crate::master::{EngineAction, EngineMessage};
 
 pub fn forward_user_action() -> SliceFunction {
     Box::new(|info: &Value, action: &EngineAction| -> SliceResult {

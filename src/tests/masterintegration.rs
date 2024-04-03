@@ -20,7 +20,7 @@
 use serde_json::{json, Value};
 
 use super::runtimetester::RuntimeTester;
-use crate::mqtt::EngineAction;
+use crate::master::EngineAction;
 
 #[tokio::test]
 async fn basic_messages() {

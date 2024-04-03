@@ -19,27 +19,27 @@
 
 use serde_json::{json, Value};
 
-use crate::mqtt::{EngineAction, SliceFunction, SliceResult};
+use crate::master::{EngineAction, SliceFunction, SliceResult};
 
 pub fn start_action() -> SliceFunction {
     Box::new(|info: &Value, action: &EngineAction| -> SliceResult {
         let topic = info["_topic"].as_str().unwrap();
         let command = info["_command"].as_str().unwrap();
-        //TODO: Only topic activates actuator if command null
+        //TODO: Only topic activates start if command null
         SliceResult::state(json!({ "_start" : action.matches_action(topic, command.as_bytes())}))
     })
 }
 
-pub fn actuator_json_action() -> SliceFunction {
+pub fn start_json_action() -> SliceFunction {
     Box::new(|info: &Value, action: &EngineAction| -> SliceResult {
         let topic = info["_topic"].as_str().unwrap();
         let pointer = info["_pointer"].as_str().unwrap();
         let value = &info["_value"];
-        imp_actuator_json_action(info, action, topic, pointer, value)
+        imp_start_json_action(info, action, topic, pointer, value)
     })
 }
 
-pub fn imp_actuator_json_action(
+pub fn imp_start_json_action(
     _info: &Value,
     action: &EngineAction,
     topic: &str,

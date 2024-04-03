@@ -19,31 +19,31 @@
 
 use std::collections::HashMap;
 
-use crate::mqtt::SliceFunction;
+use crate::master::SliceFunction;
 
-use self::ikea::IkeaRemote;
+use self::startikea::IkeaRemote;
 
 pub mod forward;
-pub mod ikea;
 pub mod relay;
 pub mod savelist;
 pub mod startaction;
+pub mod startikea;
 pub mod timing;
 
 pub fn default_engine_functions() -> HashMap<String, SliceFunction> {
     HashMap::from([
         (String::from("start_action"), startaction::start_action()),
         (
-            String::from("actuator_json_action"),
-            startaction::actuator_json_action(),
+            String::from("start_json_action"),
+            startaction::start_json_action(),
         ),
         (
-            String::from("actuator_ikea_remote_toggle"),
-            ikea::actuator_ikea_remote(IkeaRemote::Toggle),
+            String::from("start_ikea_remote_toggle"),
+            startikea::start_ikea_remote(IkeaRemote::Toggle),
         ),
         (
-            String::from("actuator_ikea_remote_bright_down"),
-            ikea::actuator_ikea_remote(IkeaRemote::BrightDown),
+            String::from("start_ikea_remote_bright_down"),
+            startikea::start_ikea_remote(IkeaRemote::BrightDown),
         ),
         (String::from("relay_on"), relay::relay_value(b"on")),
         (String::from("relay"), relay::relay()),

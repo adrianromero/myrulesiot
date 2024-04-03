@@ -17,7 +17,7 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use crate::mqtt::{self, EngineAction, EngineResult, EngineState};
+use crate::master::{EngineAction, EngineResult, EngineState, MasterEngine};
 use crate::rules;
 use crate::runtime;
 
@@ -61,7 +61,7 @@ impl RuntimeTester {
         runtime::task_runtime_loop(
             self.opt_pub_tx.as_ref().unwrap().clone(),
             self.opt_sub_rx.take().unwrap(),
-            mqtt::MasterEngine::new(String::from("MYRULESTEST"), engine_functions),
+            MasterEngine::new(String::from("MYRULESTEST"), engine_functions),
             EngineState::default(),
         )
         .await;

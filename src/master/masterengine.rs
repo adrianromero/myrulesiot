@@ -17,7 +17,6 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use super::{EngineAction, EngineMessage, EngineResult};
 use crate::runtime::Engine;
 
 use serde::{Deserialize, Serialize};
@@ -67,9 +66,68 @@ impl EngineState {
     }
 }
 
+#[derive(Debug)]
+pub struct EngineAction {
+    pub topic: String,
+    pub payload: Vec<u8>,
+}
+
+impl EngineAction {
+    pub fn new(topic: String, payload: Vec<u8>) -> Self {
+        EngineAction { topic, payload }
+    }
+    pub fn new_json(topic: String, payload: Value) -> Self {
+        EngineAction {
+            topic,
+            payload: payload.to_string().into_bytes(),
+        }
+    }
+    pub fn matches(&self, filter: &str) -> bool {
+        self.topic.eq(filter)
+    }
+    pub fn matches_action(&self, filter: &str, payload: &[u8]) -> bool {
+        self.topic.eq(filter) && payload.eq(&self.payload)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EngineMessage {
+    pub topic: String,
+    pub payload: Vec<u8>,
+    pub properties: Value,
+}
+
+impl EngineMessage {
+    pub fn new(topic: String, payload: Vec<u8>) -> Self {
+        EngineMessage {
+            topic,
+            payload,
+            properties: Value::Null,
+        }
+    }
+
+    pub fn new_json(topic: String, payload: Value) -> Self {
+        EngineMessage {
+            topic,
+            payload: payload.to_string().into_bytes(),
+            properties: Value::Null,
+        }
+    }
+
+    pub fn payload_into_json(&self) -> serde_json::Result<Value> {
+        serde_json::from_slice::<Value>(&self.payload)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct EngineResult {
+    pub messages: Vec<EngineMessage>,
+    pub is_final: bool,
+}
+
 pub struct SliceResult {
-    state: Value,
-    messages: Vec<EngineMessage>,
+    pub state: Value,
+    pub messages: Vec<EngineMessage>,
 }
 
 impl SliceResult {
@@ -118,19 +176,19 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
         let mut info = state.info.clone();
         let mut functions = state.functions.clone();
         let mut is_final = false;
+        let mut final_message: Option<String> = None;
 
         if action.matches(&format!("{}/command/functions_push", self.prefix_id)) {
             match serde_json::from_slice::<ReducerFunction>(&action.payload) {
                 Ok(f) => {
-                    let function_name = f.name.clone();
-                    functions.push(f);
                     messages.push(EngineMessage::new_json(
                         format!("{}/notify/functions_push", self.prefix_id),
                         json!({
                           "success" : true,
-                          "function" : format!("{}", function_name)
+                          "function" : f.name
                         }),
                     ));
+                    functions.push(f);
                 }
                 Err(error) => {
                     log::warn!("functions_push: Not a ReducerFunction.");
@@ -144,11 +202,12 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
                 }
             }
         } else if action.matches(&format!("{}/command/functions_pop", self.prefix_id)) {
-            functions.pop();
+            let f = functions.pop();
             messages.push(EngineMessage::new_json(
                 format!("{}/notify/functions_pop", self.prefix_id),
                 json!({
                   "success" : true,
+                  "function" : f.map_or_else(|| String::from("<None>"), |f| f.name)
                 }),
             ));
         } else if action.matches(&format!("{}/command/functions_clear", self.prefix_id)) {
@@ -191,9 +250,12 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
         } else if action.matches(&format!("{}/command/exit", self.prefix_id)) {
             is_final = true;
         } else if action.matches("SYSMR/action/error") {
+            final_message = Some(
+                String::from_utf8(action.payload).unwrap_or_else(|utferror| utferror.to_string()),
+            );
             log::error!(
                 "System Master Engine error. Received error {:?}",
-                String::from_utf8(action.payload)
+                final_message
             );
             is_final = true;
         } else if action.matches("SYSMR/action/load_functions") {
@@ -250,6 +312,7 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
                 format!("{}/notify/exit", self.prefix_id),
                 json!({
                   "success" : true,
+                  "message":final_message
                 }),
             ));
         }

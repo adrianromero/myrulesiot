@@ -1,5 +1,5 @@
 //    MyRulesIoT is a rules engine for MQTT
-//    Copyright (C) 2021-2024 Adrián Romero Corchado.
+//    Copyright (C) 2024 Adrián Romero Corchado.
 //
 //    This file is part of MyRulesIoT.
 //
@@ -17,8 +17,15 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-mod connection;
-pub use connection::{
-    from_qos, new_connection, task_publication_loop, task_subscription_loop, to_qos,
+mod masterengine;
+pub use masterengine::MasterEngine;
+pub use masterengine::{
+    EngineAction, EngineMessage, EngineResult, EngineState, ReducerFunction, SliceFunction,
+    SliceResult,
 };
-pub use connection::{ConnectionValues, Subscription};
+
+mod filestate;
+pub use filestate::{task_load_functions_loop, task_save_functions_loop};
+
+mod timer;
+pub use timer::task_timer_loop;

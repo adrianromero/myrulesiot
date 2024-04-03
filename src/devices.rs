@@ -19,7 +19,7 @@
 
 use std::collections::HashMap;
 
-use crate::mqtt::{EngineAction, EngineMessage};
+use crate::master::{EngineAction, EngineMessage};
 
 pub fn simulate_relay(
     roottopic: &str,

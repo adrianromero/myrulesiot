@@ -26,13 +26,15 @@ use rumqttc::{
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 
-use super::{EngineAction, EngineResult};
+use crate::master::{EngineAction, EngineResult};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ConnectionValues {
-    #[serde(default = "client_id_default")]
+    #[serde(default)]
     pub client_id: String,
     pub host: String,
+    pub username: String,
+    pub password: String,
     #[serde(default = "port_default")]
     pub port: u16,
     #[serde(default = "keep_alive_default")]
@@ -45,9 +47,6 @@ pub struct ConnectionValues {
     pub cap: usize,
 }
 
-fn client_id_default() -> String {
-    String::new()
-}
 fn port_default() -> u16 {
     1883
 }
@@ -95,6 +94,7 @@ pub async fn new_connection(
     );
 
     mqttoptions
+        .set_credentials(connection_info.username, connection_info.password)
         .set_keep_alive(connection_info.keep_alive)
         .set_inflight(connection_info.inflight)
         .set_clean_session(connection_info.clean_session);
