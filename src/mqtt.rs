@@ -18,7 +18,5 @@
 //
 
 mod connection;
-pub use connection::{
-    from_qos, new_connection, task_publication_loop, task_subscription_loop, to_qos,
-};
+pub use connection::{new_connection, task_publication_loop, task_subscription_loop};
 pub use connection::{ConnectionValues, Subscription};

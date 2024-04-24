@@ -30,10 +30,12 @@ use crate::master::{EngineAction, EngineResult};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ConnectionValues {
+    pub host: String,
     #[serde(default)]
     pub client_id: String,
-    pub host: String,
+    #[serde(default)]
     pub username: String,
+    #[serde(default)]
     pub password: String,
     #[serde(default = "port_default")]
     pub port: u16,
@@ -66,7 +68,8 @@ fn cap_default() -> usize {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Subscription {
     pub topic: String,
-    pub qos: i32,
+    #[serde(default)]
+    pub qos: i64,
 }
 
 fn to_engineaction(p: Publish) -> EngineAction {
@@ -160,20 +163,12 @@ pub async fn task_subscription_loop(subs_tx: mpsc::Sender<EngineAction>, mut eve
     }
 }
 
-pub fn to_qos(num: i32) -> Option<QoS> {
+fn to_qos(num: i64) -> Option<QoS> {
     match num {
         0 => Some(QoS::AtMostOnce),
         1 => Some(QoS::AtLeastOnce),
         2 => Some(QoS::ExactlyOnce),
         _nonvalid => None,
-    }
-}
-
-pub fn from_qos(qos: QoS) -> i64 {
-    match qos {
-        QoS::AtMostOnce => 0,
-        QoS::AtLeastOnce => 1,
-        QoS::ExactlyOnce => 2,
     }
 }
 
@@ -190,7 +185,7 @@ pub async fn task_publication_loop(mut rx: mpsc::Receiver<EngineResult>, client:
                     elem.topic,
                     elem.properties["qos"]
                         .as_i64()
-                        .and_then(|i| to_qos(i as i32))
+                        .and_then(|i| to_qos(i))
                         .unwrap_or(QoS::AtLeastOnce),
                     elem.properties["retain"].as_bool().unwrap_or(false),
                     elem.payload,
