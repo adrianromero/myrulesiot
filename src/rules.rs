@@ -45,6 +45,18 @@ pub fn default_engine_functions() -> HashMap<String, SliceFunction> {
             String::from("start_ikea_remote_bright_down"),
             startikea::start_ikea_remote(IkeaRemote::BrightDown),
         ),
+        (
+            String::from("start_ikea_remote_bright_up"),
+            startikea::start_ikea_remote(IkeaRemote::BrightUp),
+        ),
+        (
+            String::from("start_ikea_remote_arrow_left"),
+            startikea::start_ikea_remote(IkeaRemote::ArrowLeft),
+        ),
+        (
+            String::from("start_ikea_remote_arrow_right"),
+            startikea::start_ikea_remote(IkeaRemote::ArrowRight),
+        ),
         (String::from("relay_on"), relay::relay_value(b"on")),
         (String::from("relay"), relay::relay()),
         (String::from("forward_action"), forward::forward_action()),

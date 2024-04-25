@@ -47,3 +47,21 @@ pub async fn task_save_functions_loop(mut rx: mpsc::Receiver<EngineResult>) -> O
     log::debug!("Exiting file functions save...");
     functions
 }
+
+pub async fn task_save_exit_loop(
+    prefix_id: String,
+    mut rx: mpsc::Receiver<EngineResult>,
+) -> Option<Vec<u8>> {
+    let topic = format!("{}/notify/exit", prefix_id);
+    let mut exit: Option<Vec<u8>> = None;
+    log::debug!("Starting file exit save...");
+    while let Some(res) = rx.recv().await {
+        for elem in res.messages.into_iter() {
+            if elem.topic.eq(&topic) {
+                exit = Some(elem.payload);
+            }
+        }
+    }
+    log::debug!("Exiting file exit save...");
+    exit
+}

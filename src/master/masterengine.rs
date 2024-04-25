@@ -106,10 +106,24 @@ impl EngineMessage {
         }
     }
 
-    pub fn new_json(topic: String, payload: Value) -> Self {
+    pub fn new_json<T>(topic: String, payload: &T) -> Self
+    where
+        T: ?Sized + Serialize,
+    {
         EngineMessage {
             topic,
-            payload: payload.to_string().into_bytes(),
+            payload: serde_json::to_vec(payload).unwrap(),
+            properties: Value::Null,
+        }
+    }
+
+    pub fn new_jsonpretty<T>(topic: String, payload: &T) -> Self
+    where
+        T: ?Sized + Serialize,
+    {
+        EngineMessage {
+            topic,
+            payload: serde_json::to_vec_pretty(payload).unwrap(),
             properties: Value::Null,
         }
     }
@@ -156,6 +170,18 @@ impl SliceResult {
 
 pub type SliceFunction = Box<dyn Fn(&Value, &EngineAction) -> SliceResult + Send>;
 
+#[derive(Serialize, Deserialize, Debug)]
+pub enum FinalStatus {
+    NORMAL,
+    ERROR,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum EngineStatus {
+    RUNNING,
+    FINAL(FinalStatus, String),
+}
+
 pub struct MasterEngine {
     prefix_id: String,
     engine_functions: HashMap<String, SliceFunction>,
@@ -175,15 +201,14 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
         let mut messages = Vec::<EngineMessage>::new();
         let mut info = state.info.clone();
         let mut functions = state.functions.clone();
-        let mut is_final = false;
-        let mut final_message: Option<String> = None;
+        let mut engine_status: EngineStatus = EngineStatus::RUNNING;
 
         if action.matches(&format!("{}/command/functions_push", self.prefix_id)) {
             match serde_json::from_slice::<ReducerFunction>(&action.payload) {
                 Ok(f) => {
                     messages.push(EngineMessage::new_json(
                         format!("{}/notify/functions_push", self.prefix_id),
-                        json!({
+                        &json!({
                           "success" : true,
                           "function" : f.name
                         }),
@@ -194,7 +219,7 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
                     log::warn!("functions_push: Not a ReducerFunction.");
                     messages.push(EngineMessage::new_json(
                         format!("{}/notify/system_error", self.prefix_id),
-                        json!({
+                        &json!({
                           "command" : "functions_push",
                           "error" : format!("{}", error.to_string())
                         }),
@@ -205,7 +230,7 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
             let f = functions.pop();
             messages.push(EngineMessage::new_json(
                 format!("{}/notify/functions_pop", self.prefix_id),
-                json!({
+                &json!({
                   "success" : true,
                   "function" : f.map_or_else(|| String::from("<None>"), |f| f.name)
                 }),
@@ -214,7 +239,7 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
             functions.clear();
             messages.push(EngineMessage::new_json(
                 format!("{}/notify/functions_clear", self.prefix_id),
-                json!({
+                &json!({
                   "success" : true,
                 }),
             ));
@@ -224,7 +249,7 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
                     functions = fns;
                     messages.push(EngineMessage::new_json(
                         format!("{}/notify/functions_putall", self.prefix_id),
-                        json!({
+                        &json!({
                           "success" : true,
                         }),
                     ));
@@ -233,7 +258,7 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
                     log::warn!("functions_putall: Not a list of ReducerFunction.");
                     messages.push(EngineMessage::new_json(
                         format!("{}/notify/system_error", self.prefix_id),
-                        json!({
+                        &json!({
                           "command" : "functions_putall",
                           "error" : format!("{}", error.to_string())
                         }),
@@ -243,21 +268,23 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
         } else if action.matches(&format!("{}/command/functions_getall", self.prefix_id)) {
             messages.push(EngineMessage::new_json(
                 format!("{}/notify/functions_getall", self.prefix_id),
-                serde_json::to_value(&functions).unwrap(),
+                &functions,
             ));
         } else if action.matches(&format!("{}/command/send_messages", self.prefix_id)) {
             messages = state.messages;
         } else if action.matches(&format!("{}/command/exit", self.prefix_id)) {
-            is_final = true;
-        } else if action.matches("SYSMR/action/error") {
-            final_message = Some(
+            engine_status = EngineStatus::FINAL(
+                FinalStatus::NORMAL,
                 String::from_utf8(action.payload).unwrap_or_else(|utferror| utferror.to_string()),
             );
+        } else if action.matches("SYSMR/action/error") {
+            let final_message =
+                String::from_utf8(action.payload).unwrap_or_else(|utferror| utferror.to_string());
             log::error!(
                 "System Master Engine error. Received error {:?}",
                 final_message
             );
-            is_final = true;
+            engine_status = EngineStatus::FINAL(FinalStatus::ERROR, final_message);
         } else if action.matches("SYSMR/action/load_functions") {
             match serde_json::from_slice(&action.payload) {
                 Ok(fns) => {
@@ -303,19 +330,24 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
             }
         }
 
-        if is_final {
-            messages.push(EngineMessage::new_json(
-                "SYSMR/notify/save_functions".into(),
-                serde_json::to_value(&functions).unwrap(),
-            ));
-            messages.push(EngineMessage::new_json(
-                format!("{}/notify/exit", self.prefix_id),
-                json!({
-                  "success" : true,
-                  "message":final_message
-                }),
-            ));
-        }
+        let is_final = match engine_status {
+            EngineStatus::RUNNING => false,
+            EngineStatus::FINAL(final_status, message) => {
+                messages.push(EngineMessage::new_jsonpretty(
+                    "SYSMR/notify/save_functions".into(),
+                    &functions,
+                ));
+                let f = match final_status {
+                    FinalStatus::NORMAL => "NORMAL",
+                    FinalStatus::ERROR => "ERROR",
+                };
+                messages.push(EngineMessage::new(
+                    format!("{}/notify/exit", self.prefix_id),
+                    format!("{}/{}", f, message).into_bytes(),
+                ));
+                true
+            }
+        };
 
         EngineState {
             info,

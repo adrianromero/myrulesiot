@@ -25,7 +25,7 @@ pub use masterengine::{
 };
 
 mod filestate;
-pub use filestate::{task_load_functions_loop, task_save_functions_loop};
+pub use filestate::{task_load_functions_loop, task_save_exit_loop, task_save_functions_loop};
 
 mod timer;
 pub use timer::task_timer_loop;

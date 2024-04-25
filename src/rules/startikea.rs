@@ -26,7 +26,7 @@ pub enum IkeaRemote {
     BrightUp,
     BrightDown,
     ArrowRight,
-    ArrowDown,
+    ArrowLeft,
 }
 
 pub fn start_ikea_remote(command: IkeaRemote) -> SliceFunction {
@@ -48,6 +48,6 @@ fn ikea_remote_to_string(r: &IkeaRemote) -> &'static str {
         IkeaRemote::BrightUp => "brightness_up_click",
         IkeaRemote::BrightDown => "brightness_down_click",
         IkeaRemote::ArrowRight => "arrow_right_click",
-        IkeaRemote::ArrowDown => "arrow_left_click",
+        IkeaRemote::ArrowLeft => "arrow_left_click",
     }
 }
