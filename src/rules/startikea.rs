@@ -22,6 +22,8 @@ use serde_json::json;
 use super::startaction::imp_start_json_action;
 use crate::master::{EngineAction, SliceFunction};
 pub enum IkeaRemote {
+    On,
+    Off,
     Toggle,
     BrightUp,
     BrightDown,
@@ -44,6 +46,8 @@ pub fn start_ikea_remote(command: IkeaRemote) -> SliceFunction {
 
 fn ikea_remote_to_string(r: &IkeaRemote) -> &'static str {
     match r {
+        IkeaRemote::On => "on",
+        IkeaRemote::Off => "off",
         IkeaRemote::Toggle => "toggle",
         IkeaRemote::BrightUp => "brightness_up_click",
         IkeaRemote::BrightDown => "brightness_down_click",

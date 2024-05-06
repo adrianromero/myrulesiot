@@ -38,6 +38,14 @@ pub fn default_engine_functions() -> HashMap<String, SliceFunction> {
             startaction::start_json_action(),
         ),
         (
+            String::from("start_ikea_remote_on"),
+            startikea::start_ikea_remote(IkeaRemote::On),
+        ),
+        (
+            String::from("start_ikea_remote_off"),
+            startikea::start_ikea_remote(IkeaRemote::Off),
+        ),
+        (
             String::from("start_ikea_remote_toggle"),
             startikea::start_ikea_remote(IkeaRemote::Toggle),
         ),
