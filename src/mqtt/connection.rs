@@ -1,5 +1,5 @@
 //    MyRulesIoT is a rules engine for MQTT
-//    Copyright (C) 2021-2024 Adrián Romero Corchado.
+//    Copyright (C) 2021-2025 Adrián Romero Corchado.
 //
 //    This file is part of MyRulesIoT.
 //
@@ -24,6 +24,7 @@ use rumqttc::{
     Publish, QoS,
 };
 use serde::{Deserialize, Serialize};
+use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 
 use crate::master::{EngineAction, EngineResult};
@@ -172,9 +173,9 @@ fn to_qos(num: i64) -> Option<QoS> {
     }
 }
 
-pub async fn task_publication_loop(mut rx: mpsc::Receiver<EngineResult>, client: AsyncClient) {
+pub async fn task_publication_loop(mut rx: broadcast::Receiver<EngineResult>, client: AsyncClient) {
     log::debug!("Starting MQTT publication...");
-    while let Some(res) = rx.recv().await {
+    while let Ok(res) = rx.recv().await {
         for elem in res.messages {
             if elem.topic.starts_with("SYSMR/") {
                 // Filter SYSMR/ topics

@@ -1,5 +1,5 @@
 //    MyRulesIoT is a rules engine library for MQTT
-//    Copyright (C) 2021-2024 Adrián Romero Corchado.
+//    Copyright (C) 2021-2025 Adrián Romero Corchado.
 //
 //    This file is part of MyRulesIoT.
 //
@@ -18,6 +18,7 @@
 //
 
 use std::fmt::Debug;
+use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 
 pub trait Engine<A, R, S>
@@ -32,7 +33,7 @@ where
 }
 
 pub async fn task_runtime_loop<A, R, S, E>(
-    tx: mpsc::Sender<R>,
+    tx: broadcast::Sender<R>,
     mut rx: mpsc::Receiver<A>,
     engine: E,
     initstate: S,
@@ -57,7 +58,7 @@ where
 
         let is_final = engine.is_final(&result);
 
-        tx.send(result).await.unwrap();
+        tx.send(result).unwrap();
 
         if is_final {
             break;

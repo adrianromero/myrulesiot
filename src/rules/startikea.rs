@@ -1,5 +1,5 @@
 //    MyRulesIoT is a rules engine for MQTT
-//    Copyright (C) 2021-2024 Adrián Romero Corchado.
+//    Copyright (C) 2021-2025 Adrián Romero Corchado.
 //
 //    This file is part of MyRulesIoT.
 //
@@ -17,10 +17,14 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+use linkme::distributed_slice;
 use serde_json::json;
 
 use super::startaction::imp_start_json_action;
 use crate::master::{EngineAction, SliceFunction};
+
+use super::SLICEFUNCTIONS;
+
 pub enum IkeaRemote {
     On,
     Off,
@@ -29,6 +33,56 @@ pub enum IkeaRemote {
     BrightDown,
     ArrowRight,
     ArrowLeft,
+}
+
+#[distributed_slice(SLICEFUNCTIONS)]
+fn start_ikea_remote_on() -> (String, SliceFunction) {
+    (
+        String::from("start_ikea_remote_on"),
+        start_ikea_remote(IkeaRemote::On),
+    )
+}
+#[distributed_slice(SLICEFUNCTIONS)]
+fn start_ikea_remote_off() -> (String, SliceFunction) {
+    (
+        String::from("start_ikea_remote_off"),
+        start_ikea_remote(IkeaRemote::Off),
+    )
+}
+#[distributed_slice(SLICEFUNCTIONS)]
+fn start_ikea_remote_toggle() -> (String, SliceFunction) {
+    (
+        String::from("start_ikea_remote_toggle"),
+        start_ikea_remote(IkeaRemote::Toggle),
+    )
+}
+#[distributed_slice(SLICEFUNCTIONS)]
+fn start_ikea_remote_bright_down() -> (String, SliceFunction) {
+    (
+        String::from("start_ikea_remote_bright_down"),
+        start_ikea_remote(IkeaRemote::BrightDown),
+    )
+}
+#[distributed_slice(SLICEFUNCTIONS)]
+fn start_ikea_remote_bright_up() -> (String, SliceFunction) {
+    (
+        String::from("start_ikea_remote_bright_up"),
+        start_ikea_remote(IkeaRemote::BrightUp),
+    )
+}
+#[distributed_slice(SLICEFUNCTIONS)]
+fn start_ikea_remote_arrow_left() -> (String, SliceFunction) {
+    (
+        String::from("start_ikea_remote_arrow_left"),
+        start_ikea_remote(IkeaRemote::ArrowLeft),
+    )
+}
+#[distributed_slice(SLICEFUNCTIONS)]
+fn start_ikea_remote_arrow_right() -> (String, SliceFunction) {
+    (
+        String::from("start_ikea_remote_arrow_right"),
+        start_ikea_remote(IkeaRemote::ArrowRight),
+    )
 }
 
 pub fn start_ikea_remote(command: IkeaRemote) -> SliceFunction {

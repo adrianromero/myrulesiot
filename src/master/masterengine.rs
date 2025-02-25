@@ -1,5 +1,5 @@
 //    MyRulesIoT is a rules engine for MQTT
-//    Copyright (C) 2024 Adrián Romero Corchado.
+//    Copyright (C) 2024-2025 Adrián Romero Corchado.
 //
 //    This file is part of MyRulesIoT.
 //
@@ -199,8 +199,8 @@ impl MasterEngine {
 impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
     fn reduce(&self, state: EngineState, action: EngineAction) -> EngineState {
         let mut messages = Vec::<EngineMessage>::new();
-        let mut info = state.info.clone();
-        let mut functions = state.functions.clone();
+        let mut info = state.info;
+        let mut functions = state.functions;
         let mut engine_status: EngineStatus = EngineStatus::RUNNING;
 
         if action.matches(&format!("{}/command/functions_push", self.prefix_id)) {

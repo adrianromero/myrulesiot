@@ -1,5 +1,5 @@
 //    MyRulesIoT  Project is a rules engine for MQTT based on MyRulesIoT lib
-//    Copyright (C) 2022-2023  Adrián Romero Corchado.
+//    Copyright (C) 2022-2025 Adrián Romero Corchado.
 //
 //    This file is part of MyRulesIoT.
 //
@@ -93,5 +93,5 @@ async fn basic_messages() {
     );
     assert!(t.is_final);
 
-    assert!(testengine.recv().await.is_none());
+    assert!(testengine.recv().await.is_err());
 }

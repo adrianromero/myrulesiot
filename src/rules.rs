@@ -1,5 +1,5 @@
 //    MyRulesIoT is a rules engine for MQTT
-//    Copyright (C) 2021 Adrián Romero Corchado.
+//    Copyright (C) 2021-2025 Adrián Romero Corchado.
 //
 //    This file is part of MyRulesIoT.
 //
@@ -19,9 +19,9 @@
 
 use std::collections::HashMap;
 
-use crate::master::SliceFunction;
+use linkme::distributed_slice;
 
-use self::startikea::IkeaRemote;
+use crate::master::SliceFunction;
 
 pub mod forward;
 pub mod relay;
@@ -30,48 +30,9 @@ pub mod startaction;
 pub mod startikea;
 pub mod timing;
 
-pub fn default_engine_functions() -> HashMap<String, SliceFunction> {
-    HashMap::from([
-        (String::from("start_action"), startaction::start_action()),
-        (
-            String::from("start_json_action"),
-            startaction::start_json_action(),
-        ),
-        (
-            String::from("start_ikea_remote_on"),
-            startikea::start_ikea_remote(IkeaRemote::On),
-        ),
-        (
-            String::from("start_ikea_remote_off"),
-            startikea::start_ikea_remote(IkeaRemote::Off),
-        ),
-        (
-            String::from("start_ikea_remote_toggle"),
-            startikea::start_ikea_remote(IkeaRemote::Toggle),
-        ),
-        (
-            String::from("start_ikea_remote_bright_down"),
-            startikea::start_ikea_remote(IkeaRemote::BrightDown),
-        ),
-        (
-            String::from("start_ikea_remote_bright_up"),
-            startikea::start_ikea_remote(IkeaRemote::BrightUp),
-        ),
-        (
-            String::from("start_ikea_remote_arrow_left"),
-            startikea::start_ikea_remote(IkeaRemote::ArrowLeft),
-        ),
-        (
-            String::from("start_ikea_remote_arrow_right"),
-            startikea::start_ikea_remote(IkeaRemote::ArrowRight),
-        ),
-        (String::from("relay_on"), relay::relay_value(b"on")),
-        (String::from("relay"), relay::relay()),
-        (String::from("forward_action"), forward::forward_action()),
-        (
-            String::from("forward_user_action"),
-            forward::forward_user_action(),
-        ),
-        (String::from("condition_sleep"), timing::condition_sleep()),
-    ])
+#[distributed_slice]
+pub static SLICEFUNCTIONS: [fn() -> (String, SliceFunction)];
+
+pub fn distributed_engine_functions() -> HashMap<String, SliceFunction> {
+    SLICEFUNCTIONS.into_iter().map(|f| f()).collect()
 }

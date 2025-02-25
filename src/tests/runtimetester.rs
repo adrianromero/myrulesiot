@@ -1,5 +1,5 @@
 //    MyRulesIoT  Project is a rules engine for MQTT based on MyRulesIoT lib
-//    Copyright (C) 2024  Adrián Romero Corchado.
+//    Copyright (C) 2025 Adrián Romero Corchado.
 //
 //    This file is part of MyRulesIoT.
 //
@@ -21,20 +21,21 @@ use crate::master::{EngineAction, EngineResult, EngineState, MasterEngine};
 use crate::rules;
 use crate::runtime;
 
+use tokio::sync::broadcast;
+use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::mpsc;
-use tokio::sync::mpsc::{Receiver, Sender};
 
 pub struct RuntimeTester {
-    opt_sub_tx: Option<Sender<EngineAction>>,
-    opt_sub_rx: Option<Receiver<EngineAction>>,
-    opt_pub_tx: Option<Sender<EngineResult>>,
-    pub_rx: Receiver<EngineResult>,
+    opt_sub_tx: Option<mpsc::Sender<EngineAction>>,
+    opt_sub_rx: Option<mpsc::Receiver<EngineAction>>,
+    opt_pub_tx: Option<broadcast::Sender<EngineResult>>,
+    pub_rx: broadcast::Receiver<EngineResult>,
 }
 
 impl RuntimeTester {
     pub fn new() -> Self {
         let (sub_tx, sub_rx) = mpsc::channel::<EngineAction>(10);
-        let (pub_tx, pub_rx) = mpsc::channel::<EngineResult>(10);
+        let (pub_tx, pub_rx) = broadcast::channel::<EngineResult>(10);
         RuntimeTester {
             opt_sub_tx: Some(sub_tx),
             opt_sub_rx: Some(sub_rx),
@@ -52,12 +53,12 @@ impl RuntimeTester {
             .unwrap();
     }
 
-    pub async fn recv(&mut self) -> Option<EngineResult> {
+    pub async fn recv(&mut self) -> Result<EngineResult, RecvError> {
         self.pub_rx.recv().await
     }
 
     pub async fn runtime_loop(&mut self) {
-        let engine_functions = rules::default_engine_functions();
+        let engine_functions = rules::distributed_engine_functions();
         runtime::task_runtime_loop(
             self.opt_pub_tx.as_ref().unwrap().clone(),
             self.opt_sub_rx.take().unwrap(),

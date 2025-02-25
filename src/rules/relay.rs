@@ -1,5 +1,5 @@
 //    MyRulesIoT is a rules engine for MQTT
-//    Copyright (C) 2021-2024 Adrián Romero Corchado.
+//    Copyright (C) 2021-2025 Adrián Romero Corchado.
 //
 //    This file is part of MyRulesIoT.
 //
@@ -17,9 +17,17 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+use linkme::distributed_slice;
 use serde_json::{json, Value};
 
 use crate::master::{EngineAction, EngineMessage, SliceFunction, SliceResult};
+
+use super::SLICEFUNCTIONS;
+
+#[distributed_slice(SLICEFUNCTIONS)]
+fn relay_action() -> (String, SliceFunction) {
+    (String::from("relay"), relay())
+}
 
 pub fn relay() -> SliceFunction {
     Box::new(|info: &Value, _action: &EngineAction| {
@@ -27,6 +35,15 @@ pub fn relay() -> SliceFunction {
         let value = info["_value"].as_str().unwrap().as_bytes();
         imp_relay(info, topic, value)
     })
+}
+
+#[distributed_slice(SLICEFUNCTIONS)]
+fn relay_value_on() -> (String, SliceFunction) {
+    (String::from("relay_on"), relay_value(b"on"))
+}
+#[distributed_slice(SLICEFUNCTIONS)]
+fn relay_value_off() -> (String, SliceFunction) {
+    (String::from("relay_off"), relay_value(b"off"))
 }
 
 pub fn relay_value(value: &[u8]) -> SliceFunction {

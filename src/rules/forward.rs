@@ -1,5 +1,5 @@
 //    MyRulesIoT is a rules engine for MQTT
-//    Copyright (C) 2021-2024 Adrián Romero Corchado.
+//    Copyright (C) 2021-2025 Adrián Romero Corchado.
 //
 //    This file is part of MyRulesIoT.
 //
@@ -17,12 +17,20 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+use linkme::distributed_slice;
 use serde_json::json;
 use serde_json::Value;
 
 use crate::master::SliceFunction;
 use crate::master::SliceResult;
 use crate::master::{EngineAction, EngineMessage};
+
+use super::SLICEFUNCTIONS;
+
+#[distributed_slice(SLICEFUNCTIONS)]
+fn _forward_user_action() -> (String, SliceFunction) {
+    (String::from("forward_user_action"), forward_user_action())
+}
 
 pub fn forward_user_action() -> SliceFunction {
     Box::new(|info: &Value, action: &EngineAction| -> SliceResult {
@@ -36,6 +44,11 @@ pub fn forward_user_action() -> SliceFunction {
         }
         SliceResult::empty()
     })
+}
+
+#[distributed_slice(SLICEFUNCTIONS)]
+fn _forward_action() -> (String, SliceFunction) {
+    (String::from("forward_action"), forward_action())
 }
 
 pub fn forward_action() -> SliceFunction {

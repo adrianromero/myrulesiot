@@ -1,5 +1,5 @@
 //    MyRulesIoT is a rules engine for MQTT
-//    Copyright (C) 2021-2024 Adrián Romero Corchado.
+//    Copyright (C) 2021-2025 Adrián Romero Corchado.
 //
 //    This file is part of MyRulesIoT.
 //
@@ -17,9 +17,17 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+use linkme::distributed_slice;
 use serde_json::{json, Value};
 
 use crate::master::{EngineAction, SliceFunction, SliceResult};
+
+use super::SLICEFUNCTIONS;
+
+#[distributed_slice(SLICEFUNCTIONS)]
+fn slice_start_action() -> (String, SliceFunction) {
+    (String::from("start_action"), start_action())
+}
 
 pub fn start_action() -> SliceFunction {
     Box::new(|info: &Value, action: &EngineAction| -> SliceResult {
@@ -28,6 +36,11 @@ pub fn start_action() -> SliceFunction {
         //TODO: Only topic activates start if command null
         SliceResult::state(json!({ "_start" : action.matches_action(topic, command.as_bytes())}))
     })
+}
+
+#[distributed_slice(SLICEFUNCTIONS)]
+fn slice_start_json_action() -> (String, SliceFunction) {
+    (String::from("start_json_action"), start_json_action())
 }
 
 pub fn start_json_action() -> SliceFunction {

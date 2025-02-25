@@ -1,5 +1,5 @@
 //    MyRulesIoT is a rules engine library for MQTT
-//    Copyright (C) 2024 Adrián Romero Corchado.
+//    Copyright (C) 2024-2025 Adrián Romero Corchado.
 //
 //    This file is part of MyRulesIoT.
 //
@@ -20,6 +20,3 @@
 mod engine;
 pub use engine::task_runtime_loop;
 pub use engine::Engine;
-
-mod multisubscriber;
-pub use multisubscriber::MultiRX;

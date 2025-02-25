@@ -1,5 +1,5 @@
 //    MyRulesIoT is a rules engine for MQTT
-//    Copyright (C) 2021-2024 Adrián Romero Corchado.
+//    Copyright (C) 2021-2025 Adrián Romero Corchado.
 //
 //    This file is part of MyRulesIoT.
 //
@@ -17,6 +17,7 @@
 //    along with MyRulesIoT.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 
 use super::{EngineAction, EngineResult};
@@ -34,10 +35,12 @@ pub async fn task_load_functions_loop(tx: mpsc::Sender<EngineAction>, functions:
     log::debug!("Exiting file functions load...");
 }
 
-pub async fn task_save_functions_loop(mut rx: mpsc::Receiver<EngineResult>) -> Option<Vec<u8>> {
+pub async fn task_save_functions_loop(
+    mut rx: broadcast::Receiver<EngineResult>,
+) -> Option<Vec<u8>> {
     let mut functions: Option<Vec<u8>> = None;
     log::debug!("Starting file functions save...");
-    while let Some(res) = rx.recv().await {
+    while let Ok(res) = rx.recv().await {
         for elem in res.messages.into_iter() {
             if elem.topic.eq("SYSMR/notify/save_functions") {
                 functions = Some(elem.payload);
@@ -50,12 +53,12 @@ pub async fn task_save_functions_loop(mut rx: mpsc::Receiver<EngineResult>) -> O
 
 pub async fn task_save_exit_loop(
     prefix_id: String,
-    mut rx: mpsc::Receiver<EngineResult>,
+    mut rx: broadcast::Receiver<EngineResult>,
 ) -> Option<Vec<u8>> {
     let topic = format!("{}/notify/exit", prefix_id);
     let mut exit: Option<Vec<u8>> = None;
     log::debug!("Starting file exit save...");
-    while let Some(res) = rx.recv().await {
+    while let Ok(res) = rx.recv().await {
         for elem in res.messages.into_iter() {
             if elem.topic.eq(&topic) {
                 exit = Some(elem.payload);
