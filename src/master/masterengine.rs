@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ReducerFunction {
     name: String,
     #[serde(flatten)]
@@ -40,8 +40,6 @@ impl ReducerFunction {
 pub struct EngineState {
     pub info: Value,
     pub functions: Vec<ReducerFunction>,
-    pub messages: Vec<EngineMessage>,
-    pub is_final: bool,
 }
 
 impl Default for EngineState {
@@ -49,20 +47,13 @@ impl Default for EngineState {
         EngineState {
             info: json!({}),
             functions: vec![],
-            messages: vec![],
-            is_final: false,
         }
     }
 }
 
 impl EngineState {
     pub fn new(info: Value, functions: Vec<ReducerFunction>) -> Self {
-        EngineState {
-            info,
-            functions,
-            messages: vec![],
-            is_final: false,
-        }
+        EngineState { info, functions }
     }
 }
 
@@ -197,7 +188,7 @@ impl MasterEngine {
 }
 
 impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
-    fn reduce(&self, state: EngineState, action: EngineAction) -> EngineState {
+    fn reduce(&self, state: EngineState, action: EngineAction) -> (EngineState, EngineResult) {
         let mut messages = Vec::<EngineMessage>::new();
         let mut info = state.info;
         let mut functions = state.functions;
@@ -270,8 +261,6 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
                 format!("{}/notify/functions_getall", self.prefix_id),
                 &functions,
             ));
-        } else if action.matches(&format!("{}/command/send_messages", self.prefix_id)) {
-            messages = state.messages;
         } else if action.matches(&format!("{}/command/exit", self.prefix_id)) {
             engine_status = EngineStatus::FINAL(
                 FinalStatus::NORMAL,
@@ -349,18 +338,10 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
             }
         };
 
-        EngineState {
-            info,
-            functions,
-            messages,
-            is_final,
-        }
-    }
-    fn template(&self, state: &EngineState) -> EngineResult {
-        EngineResult {
-            messages: state.messages.clone(),
-            is_final: state.is_final,
-        }
+        (
+            EngineState { info, functions },
+            EngineResult { messages, is_final },
+        )
     }
     fn is_final(&self, result: &EngineResult) -> bool {
         result.is_final

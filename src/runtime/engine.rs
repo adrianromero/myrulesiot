@@ -27,8 +27,7 @@ where
     R: Debug,
     S: Debug,
 {
-    fn reduce(&self, state: S, action: A) -> S;
-    fn template(&self, state: &S) -> R;
+    fn reduce(&self, state: S, action: A) -> (S, R);
     fn is_final(&self, result: &R) -> bool;
 }
 
@@ -48,13 +47,10 @@ where
     while let Some(action) = rx.recv().await {
         log::debug!("Persist action {:?}.", &action);
 
-        state = engine.reduce(state, action);
+        let (s, result) = engine.reduce(state, action);
+        state = s;
 
-        log::debug!("Persist state {:?}.", &state);
-
-        let result = engine.template(&state);
-
-        log::debug!("Persist result {:?}.", &result);
+        log::debug!("Persist state {:?} and result {:?}.", &state, &result);
 
         let is_final = engine.is_final(&result);
 
