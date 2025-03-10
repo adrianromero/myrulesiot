@@ -18,11 +18,12 @@
 //
 
 use config::Config;
+use myrulesiot::master::EngineStatus;
+use myrulesiot::master::FinalStatus;
 use std::error::Error;
 use std::fs;
 use std::path::Path;
 
-use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio::{task, try_join};
 
@@ -54,26 +55,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
     fs::remove_file(EXIT_PATH).unwrap_or_default();
 
     // Functions
-    let functions = if let Ok(true) = Path::new(FUNCTIONS_PATH).try_exists() {
-        let f = fs::read(FUNCTIONS_PATH).map_err(|error| {
-            format!(
-                "Cannot read ReducerFunctions file {}: {}",
-                FUNCTIONS_PATH, error
-            )
-        })?;
-        serde_json::from_slice::<Vec<ReducerFunction>>(&f).map_err(|error| {
-            format!(
-                "Cannot parse JSON ReducerFunctions file {}: {}",
-                FUNCTIONS_PATH, error
-            )
-        })?;
-        f
-    } else {
-        Vec::from(b"[]")
+    let functions = match Path::new(FUNCTIONS_PATH).try_exists() {
+        Ok(true) => {
+            let f = fs::read(FUNCTIONS_PATH).map_err(|error| {
+                format!("Cannot read ReducerFunctions file {FUNCTIONS_PATH}: {error}")
+            })?;
+            serde_json::from_slice::<Vec<ReducerFunction>>(&f).map_err(|error| {
+                format!("Cannot parse JSON ReducerFunctions file {FUNCTIONS_PATH}: {error}")
+            })?
+        }
+        _ => Vec::new(),
     };
 
     let (sub_tx, sub_rx) = mpsc::channel::<EngineAction>(10);
-    let (pub_tx, _) = broadcast::channel::<EngineResult>(10);
+    let (pub_tx, pub_rx) = mpsc::channel::<EngineResult>(10);
 
     // MQTT Connection
     let connection_info: ConnectionValues = settings.get::<ConnectionValues>("mqtt.connection")?;
@@ -81,57 +76,58 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .get::<Vec<Subscription>>("mqtt.subscriptions")
         .unwrap_or(vec![]);
     subscriptions.push(Subscription {
-        topic: format!("{}/command/#", prefix_id),
+        topic: format!("{prefix_id}/command/#"),
         qos: 0,
     });
 
     log::info!("Connecting to MQTT broker: {:?}", &connection_info);
     let (client, eventloop) = mqtt::new_connection(connection_info, subscriptions)
         .await
-        .map_err(|error| format!("MQTT error: {}", error))?;
+        .map_err(|error| format!("MQTT error: {error}"))?;
 
     // MQTT
     let mqttsubscribetask = mqtt::task_subscription_loop(sub_tx.clone(), eventloop);
-    let mqttpublishtask = mqtt::task_publication_loop(pub_tx.subscribe(), client);
+    let mqttpublishtask = mqtt::task_publication_loop(pub_rx, client);
 
     // Senders of EngineAction's
     let timertask = master::task_timer_loop(sub_tx.clone(), chrono::Duration::milliseconds(250));
-    let load_functions_task = master::task_load_functions_loop(sub_tx.clone(), functions);
-
-    // Receivers of EngineResult's
-    let save_functions_task = master::task_save_functions_loop(pub_tx.subscribe());
-    let save_exit_task = master::task_save_exit_loop(prefix_id.clone(), pub_tx.subscribe());
 
     // THE RUNTIME ENGINE
     let enginetask = runtime::task_runtime_loop(
         pub_tx.clone(),
         sub_rx,
         MasterEngine::new(prefix_id, rules::distributed_engine_functions()),
-        EngineState::default(),
+        EngineState::new_functions(functions),
     );
 
     std::mem::drop(sub_tx);
     std::mem::drop(pub_tx);
 
     log::info!("Starting myrulesiot...");
-    let (_, _, _, _, _, save_functions_result, save_exit_result) = try_join!(
+    let (state, _, _, _) = try_join!(
         task::spawn(enginetask),
         task::spawn(timertask),
-        task::spawn(load_functions_task),
         task::spawn(mqttsubscribetask),
-        task::spawn(mqttpublishtask),
-        task::spawn(save_functions_task),
-        task::spawn(save_exit_task)
+        task::spawn(mqttpublishtask)
     )?;
     log::info!("Exiting myrulesiot...");
 
-    if let Some(functions) = save_functions_result {
-        fs::write(FUNCTIONS_PATH, &functions)?;
-    }
+    fs::write(
+        FUNCTIONS_PATH,
+        serde_json::to_vec_pretty(&state.functions).unwrap(),
+    )?;
 
-    if let Some(exit) = save_exit_result {
-        fs::write(EXIT_PATH, &exit)?;
-    }
+    match state.engine_status {
+        EngineStatus::FINAL(status, message) => {
+            let status_string = match status {
+                FinalStatus::NORMAL => "NORMAL",
+                FinalStatus::ERROR => "ERROR",
+            };
+            fs::write(EXIT_PATH, format!("{status_string}/{message}"))?;
+            Ok(())
+        }
+        _ => Err("EngineStatus is not FINAL"),
+    }?;
 
     Ok(())
 }

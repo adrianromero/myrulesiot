@@ -18,7 +18,6 @@
 //
 
 use std::fmt::Debug;
-use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 
 pub trait Engine<A, R, S>
@@ -28,11 +27,11 @@ where
     S: Debug,
 {
     fn reduce(&self, state: S, action: A) -> (S, R);
-    fn is_final(&self, result: &R) -> bool;
+    fn is_final(&self, state: &S) -> bool;
 }
 
 pub async fn task_runtime_loop<A, R, S, E>(
-    tx: broadcast::Sender<R>,
+    tx: mpsc::Sender<R>,
     mut rx: mpsc::Receiver<A>,
     engine: E,
     initstate: S,
@@ -52,9 +51,9 @@ where
 
         log::debug!("Persist state {:?} and result {:?}.", &state, &result);
 
-        let is_final = engine.is_final(&result);
+        let is_final = engine.is_final(&state);
 
-        tx.send(result).unwrap();
+        tx.send(result).await.unwrap();
 
         if is_final {
             break;

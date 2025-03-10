@@ -20,7 +20,7 @@
 use serde_json::{json, Value};
 
 use super::runtimetester::RuntimeTester;
-use crate::master::EngineAction;
+use crate::master::{EngineAction, EngineStatus, FinalStatus};
 
 #[tokio::test]
 async fn basic_messages() {
@@ -29,35 +29,38 @@ async fn basic_messages() {
     // Push function
     testengine
         .send(EngineAction::new(
-            "MYRULESTEST/command/functions_push".into(),
-            b"{\"name\":\"start_ikea_remote_toggle\", \"_topic\":\"zigbee2mqtt/Tradfri Remote\"}"
-                .into(),
+            String::from("MYRULESTEST/command/functions_push"),
+            Vec::from( 
+                b"{\"name\":\"start_ikea_remote_toggle\", \"_topic\":\"zigbee2mqtt/Tradfri Remote\"}"
+            ),
         ))
         .await;
 
     testengine
         .send(EngineAction::new(
-            "MYRULESTEST/command/functions_push".into(),
-            b"{\"name\":\"relay_on\", \"_topic\":\"shellies/shellyswitch01/relay/1/command\"}"
-                .into(),
+            String::from("MYRULESTEST/command/functions_push"),
+            Vec::from(
+                b"{\"name\":\"relay_on\", \"_topic\":\"shellies/shellyswitch01/relay/1/command\"}",
+            ),
         ))
         .await;
 
     testengine
         .send(EngineAction::new(
-            "zigbee2mqtt/Tradfri Remote".into(),
-            b"{\"action\":\"toggle\"}".into(),
+            String::from("zigbee2mqtt/Tradfri Remote"),
+            Vec::from(b"{\"action\":\"toggle\"}"),
         ))
         .await;
 
     testengine
-        .send(EngineAction::new("MYRULESTEST/command/exit".into(), vec![]))
+        .send(EngineAction::new(String::from("MYRULESTEST/command/exit"), Vec::new()))
         .await;
 
-    testengine.runtime_loop().await;
+    let state = testengine.runtime_loop().await;
 
     // The function push result
     let t = testengine.recv().await.unwrap();
+    assert_eq!(t.messages.len(), 1);
     assert_eq!(&t.messages[0].topic, "MYRULESTEST/notify/functions_push");
     assert_eq!(
         json!({
@@ -66,23 +69,29 @@ async fn basic_messages() {
         }),
         serde_json::from_slice::<Value>(&t.messages[0].payload).unwrap()
     );
-    assert!(!t.is_final);
 
-    // The function push result
+    // The function push result  
+    let t = testengine.recv().await.unwrap();
+    assert_eq!(t.messages.len(), 1);
+    assert_eq!(&t.messages[0].topic, "MYRULESTEST/notify/functions_push");
     assert_eq!(
-        "EngineResult { messages: [EngineMessage { topic: \"MYRULESTEST/notify/functions_push\", payload: [123, 34, 102, 117, 110, 99, 116, 105, 111, 110, 34, 58, 34, 114, 101, 108, 97, 121, 95, 111, 110, 34, 44, 34, 115, 117, 99, 99, 101, 115, 115, 34, 58, 116, 114, 117, 101, 125], properties: Null }], is_final: false }",
-        format!("{:?}", testengine.recv().await.unwrap())
+        json!({
+            "function" : "relay_on",
+            "success" : true
+        }),
+        serde_json::from_slice::<Value>(&t.messages[0].payload).unwrap()
     );
-
+ 
     // The actuator action result.
     assert_eq!(
-        "EngineResult { messages: [EngineMessage { topic: \"shellies/shellyswitch01/relay/1/command\", payload: [111, 110], properties: Null }], is_final: false }",
+        "EngineResult { messages: [EngineMessage { topic: \"shellies/shellyswitch01/relay/1/command\", payload: [111, 110], properties: Null }] }",
         format!("{:?}", testengine.recv().await.unwrap())
     );
 
-    // The function push result
-    let t = testengine.recv().await.unwrap();
-    assert_eq!(&t.messages[0].topic, "SYSMR/notify/save_functions");
+    assert!(matches!(
+        state.engine_status,
+        EngineStatus::FINAL(FinalStatus::NORMAL, _)
+    ));
     assert_eq!(
         json!([{
             "_topic": "zigbee2mqtt/Tradfri Remote",
@@ -91,9 +100,11 @@ async fn basic_messages() {
             "_topic": "shellies/shellyswitch01/relay/1/command",
             "name":"relay_on"
         }]),
-        t.messages[0].payload_into_json().unwrap()
+        serde_json::to_value(&state.functions).unwrap()
     );
-    assert!(t.is_final);
 
-    assert!(testengine.recv().await.is_err());
+    let final_result = testengine.recv().await.unwrap();
+    assert_eq!(final_result.messages.len(), 0);
+
+    assert!(testengine.recv().await.is_none());
 }

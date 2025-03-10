@@ -24,7 +24,6 @@ use rumqttc::{
     Publish, QoS,
 };
 use serde::{Deserialize, Serialize};
-use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 
 use crate::master::{EngineAction, EngineResult};
@@ -173,9 +172,9 @@ fn to_qos(num: i64) -> Option<QoS> {
     }
 }
 
-pub async fn task_publication_loop(mut rx: broadcast::Receiver<EngineResult>, client: AsyncClient) {
+pub async fn task_publication_loop(mut rx: mpsc::Receiver<EngineResult>, client: AsyncClient) {
     log::debug!("Starting MQTT publication...");
-    while let Ok(res) = rx.recv().await {
+    while let Some(res) = rx.recv().await {
         for elem in res.messages {
             if elem.topic.starts_with("SYSMR/") {
                 // Filter SYSMR/ topics

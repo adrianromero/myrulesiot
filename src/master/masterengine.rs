@@ -40,6 +40,7 @@ impl ReducerFunction {
 pub struct EngineState {
     pub info: Value,
     pub functions: Vec<ReducerFunction>,
+    pub engine_status: EngineStatus,
 }
 
 impl Default for EngineState {
@@ -47,13 +48,25 @@ impl Default for EngineState {
         EngineState {
             info: json!({}),
             functions: vec![],
+            engine_status: EngineStatus::INIT,
         }
     }
 }
 
 impl EngineState {
     pub fn new(info: Value, functions: Vec<ReducerFunction>) -> Self {
-        EngineState { info, functions }
+        EngineState {
+            info,
+            functions,
+            engine_status: EngineStatus::INIT,
+        }
+    }
+    pub fn new_functions(functions: Vec<ReducerFunction>) -> Self {
+        EngineState {
+            info: json!({}),
+            functions,
+            engine_status: EngineStatus::INIT,
+        }
     }
 }
 
@@ -81,7 +94,7 @@ impl EngineAction {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct EngineMessage {
     pub topic: String,
     pub payload: Vec<u8>,
@@ -124,10 +137,9 @@ impl EngineMessage {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq)]
 pub struct EngineResult {
     pub messages: Vec<EngineMessage>,
-    pub is_final: bool,
 }
 
 pub struct SliceResult {
@@ -169,6 +181,7 @@ pub enum FinalStatus {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum EngineStatus {
+    INIT,
     RUNNING,
     FINAL(FinalStatus, String),
 }
@@ -194,11 +207,13 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
         let mut functions = state.functions;
         let mut engine_status: EngineStatus = EngineStatus::RUNNING;
 
-        if action.matches(&format!("{}/command/functions_push", self.prefix_id)) {
+        let prefix_id = &self.prefix_id;
+
+        if action.matches(&format!("{prefix_id}/command/functions_push")) {
             match serde_json::from_slice::<ReducerFunction>(&action.payload) {
                 Ok(f) => {
                     messages.push(EngineMessage::new_json(
-                        format!("{}/notify/functions_push", self.prefix_id),
+                        format!("{prefix_id}/notify/functions_push",),
                         &json!({
                           "success" : true,
                           "function" : f.name
@@ -209,7 +224,7 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
                 Err(error) => {
                     log::warn!("functions_push: Not a ReducerFunction.");
                     messages.push(EngineMessage::new_json(
-                        format!("{}/notify/system_error", self.prefix_id),
+                        format!("{prefix_id}/notify/system_error"),
                         &json!({
                           "command" : "functions_push",
                           "error" : format!("{}", error.to_string())
@@ -258,10 +273,10 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
             }
         } else if action.matches(&format!("{}/command/functions_getall", self.prefix_id)) {
             messages.push(EngineMessage::new_json(
-                format!("{}/notify/functions_getall", self.prefix_id),
+                format!("{prefix_id}/notify/functions_getall"),
                 &functions,
             ));
-        } else if action.matches(&format!("{}/command/exit", self.prefix_id)) {
+        } else if action.matches(&format!("{prefix_id}/command/exit")) {
             engine_status = EngineStatus::FINAL(
                 FinalStatus::NORMAL,
                 String::from_utf8(action.payload).unwrap_or_else(|utferror| utferror.to_string()),
@@ -269,20 +284,8 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
         } else if action.matches("SYSMR/action/error") {
             let final_message =
                 String::from_utf8(action.payload).unwrap_or_else(|utferror| utferror.to_string());
-            log::error!(
-                "System Master Engine error. Received error {:?}",
-                final_message
-            );
+            log::error!("System Master Engine error. Received error {final_message:?}");
             engine_status = EngineStatus::FINAL(FinalStatus::ERROR, final_message);
-        } else if action.matches("SYSMR/action/load_functions") {
-            match serde_json::from_slice(&action.payload) {
-                Ok(fns) => {
-                    functions = fns;
-                }
-                Err(error) => {
-                    log::error!("System Master Engine error. Not a list of ReducerFunction in load_functions. {}", error);
-                }
-            }
         } else {
             log::debug!("executing {} functions)", functions.len());
             if let Value::Object(obj) = &mut info {
@@ -319,31 +322,16 @@ impl Engine<EngineAction, EngineResult, EngineState> for MasterEngine {
             }
         }
 
-        let is_final = match engine_status {
-            EngineStatus::RUNNING => false,
-            EngineStatus::FINAL(final_status, message) => {
-                messages.push(EngineMessage::new_jsonpretty(
-                    "SYSMR/notify/save_functions".into(),
-                    &functions,
-                ));
-                let f = match final_status {
-                    FinalStatus::NORMAL => "NORMAL",
-                    FinalStatus::ERROR => "ERROR",
-                };
-                messages.push(EngineMessage::new(
-                    format!("{}/notify/exit", self.prefix_id),
-                    format!("{}/{}", f, message).into_bytes(),
-                ));
-                true
-            }
-        };
-
         (
-            EngineState { info, functions },
-            EngineResult { messages, is_final },
+            EngineState {
+                engine_status,
+                info,
+                functions,
+            },
+            EngineResult { messages },
         )
     }
-    fn is_final(&self, result: &EngineResult) -> bool {
-        result.is_final
+    fn is_final(&self, state: &EngineState) -> bool {
+        matches!(state.engine_status, EngineStatus::FINAL(..))
     }
 }

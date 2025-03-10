@@ -1,5 +1,5 @@
 //    MyRulesIoT is a rules engine for MQTT
-//    Copyright (C) 2024 Adrián Romero Corchado.
+//    Copyright (C) 2024-2025 Adrián Romero Corchado.
 //
 //    This file is part of MyRulesIoT.
 //
@@ -20,12 +20,9 @@
 mod masterengine;
 pub use masterengine::MasterEngine;
 pub use masterengine::{
-    EngineAction, EngineMessage, EngineResult, EngineState, ReducerFunction, SliceFunction,
-    SliceResult,
+    EngineAction, EngineMessage, EngineResult, EngineState, EngineStatus, FinalStatus,
+    ReducerFunction, SliceFunction, SliceResult,
 };
-
-mod filestate;
-pub use filestate::{task_load_functions_loop, task_save_exit_loop, task_save_functions_loop};
 
 mod timer;
 pub use timer::task_timer_loop;
